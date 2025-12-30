@@ -1,0 +1,94 @@
+# DEFAULT PACKAGE CONFIGS
+## REMOVING ANY OF THESE VALUES WILL RAISE ERRORS
+### EDIT ~/.config/aliasr/config.toml INSTEAD AND CHANGES WILL AUTOMATICALLY BE MERGED
+[cheats]
+paths = ["~/.cheats", "/opt/my-resources/setup/arsenal-cheats"]
+exclude = ["README.md"]
+include_defaults = true
+custom_first = false
+default_grouping = "cat"  # Set to "" for none/all
+
+[globals]
+path = "~/.aliasr.json"
+history = true
+max_len = 50
+show_grid = true
+auto_krb = false
+
+[globals.defaults]
+lhost = [""]
+lport = [""]
+lwport = ["8000"]  # Yes I made this up. Stands for "local web port" and is where you serve your simple http server
+ip = [""]
+hostname = [""]
+domain = [""]
+fqdn = [""]
+dc_ip = [""]
+dc_fqdn = [""]
+domain_sid = [""]
+krb5ccname = [""]
+aliasr_prefix = [""]
+
+[creds]
+kdbx = "~/.exegol_history/DB.kdbx"
+key = "~/.exegol_history/db.key"
+mask = false
+auto_hash = true
+
+[keybindings]
+quit = "ctrl+c"
+copy_input = "ctrl+b"
+prev_tab = "alt+left"
+next_tab = "alt+right"
+toggle_grid = "ctrl+g"  # While focusing the search bar
+cycle_grid_focus = "ctrl+s"
+cycle_filter_focus = "ctrl+r"
+cycle_select_focus = "ctrl+y"  # Refers to dropdown boxes in top right of main screen
+globals_editor = "ctrl+g"  # While focusing the globals grid
+globals_screen = "ctrl+o"
+creds_screen = "ctrl+l"
+tree_screen = "ctrl+t"
+
+[keybindings.build_screen]
+param_screen = "ctrl+r"
+variations_screen = "ctrl+g"
+
+[keybindings.grid_nav]
+move_left = "alt+left"
+move_right = "alt+right"
+move_up = "alt+up"
+move_down = "alt+down"
+
+[keybindings.table]
+edit_row = "enter"
+add_row = "ctrl+n"
+delete_row = "ctrl+j"
+move_row_up = "ctrl+up"
+move_row_down = "ctrl+down"
+
+[keybindings.table.copy]
+col_1 = "ctrl+r"  # Username/Global
+col_2 = "ctrl+t"  # Password/Value
+col_3 = "ctrl+y"  # NT Hash
+col_4 = "ctrl+g"  # Domain
+
+[layout]
+globals_rows = 2
+globals_columns = 6
+build_columns = 5
+
+# See https://textual.textualize.io/guide/design/#base-colors for reference
+[theme]
+name = "aliasr"
+primary = "#61AFEF"
+secondary = "#C678DD"
+accent = "#56B6C2"
+foreground = "#DCDFE4"
+background = "#282C34"
+success = "#98C379"
+warning = "#E5C07B"
+error = "#E06C75"
+surface = "#282C34"
+panel = "#282C34"
+dark = true
+footer_key_foreground = "#61AFEF"

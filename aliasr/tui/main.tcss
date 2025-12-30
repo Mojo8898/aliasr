@@ -1,0 +1,409 @@
+/* ============================================
+   BASE WIDGETS
+   ============================================ */
+
+* {
+    scrollbar-size-vertical: 1;
+    scrollbar-color: $foreground 30%;
+}
+
+ModalScreen {
+    align: center middle;
+}
+
+ModalScreen #panel {
+    padding: 0 1;
+    border: round $foreground;
+    overflow: auto;
+}
+
+ModalScreen #title {
+    margin: 1;
+    color: $secondary;
+}
+
+Input {
+    border: round $foreground;
+    padding: 0 1;
+}
+
+Input:focus {
+    border: round $primary;
+}
+
+TabbedContent {
+    height: 1fr;
+}
+
+Tab:hover {
+    background: $primary 10%;
+}
+
+Tabs Tab:blur {
+    background: $background;
+}
+
+OptionList {
+    padding: 0 1;
+    border: round $foreground 50%;
+}
+
+OptionList:focus {
+  background-tint: $background;
+}
+
+OptionList > .option-list--option-hover {
+    background: $primary 10%;
+}
+OptionList > .option-list--option-highlighted {
+    background: $primary 20%;
+}
+
+DataTable > .datatable--hover {
+    background: $primary 10%;
+}
+
+DataTable > .datatable--cursor {
+    background: $primary 20%;
+}
+
+DataTable > .datatable--selected {
+    background: $primary 30%;
+}
+
+DataTable > .datatable--header {
+    color: $warning;
+}
+
+Footer {
+    margin-top: 1;
+    width: 100%;
+}
+
+Toast {
+    padding: 1 2;
+    color: $secondary;
+    border: round $foreground 50%;
+    background: transparent;
+}
+
+
+/* ============================================
+   MAIN SCREEN
+   ============================================ */
+
+MainScreen #header {
+    height: 4;
+}
+
+MainScreen #search-bar {
+    padding-left: 1;
+    height: 3;
+}
+
+/* Search Bar */
+MainSearch #search-container {
+    layout: horizontal;
+    height: 1;
+    border: none;
+}
+
+MainSearch #tabs {
+    margin-right: 1;
+    width: 1fr;
+}
+
+MainSearch #search {
+    margin-right: 1;
+    width: 1fr;
+    border: none;
+}
+
+
+/* Filters */
+MainSearch #filter-group {
+    padding: 0 1;
+    width: auto;
+}
+
+MainSearch #filter-label,
+MainSearch #indicators {
+    width: auto;
+}
+
+MainSearch #filter-group {
+    border-left: round $foreground;
+    border-bottom: round $foreground;
+    border-right: round $foreground;
+}
+
+MainSearch #filter-label {
+    margin-right: 1;
+}
+
+MainSearch #tag-filter {
+    margin: 0 1;
+    width: 14;
+    height: 1;
+    border: none;
+}
+
+MainSearch #tag-type-select,
+MainSearch #target-select,
+MainSearch #os-select {
+    margin: 0;
+    padding: 0 1;
+    width: 13;
+    border: none;
+    border-left: round $foreground;
+}
+
+MainSearch #os-select {
+    padding-left: 1;
+    width: 15;
+}
+
+/* Compact Select widgets */
+MainSearch Select.--compact {
+    width: auto;
+}
+
+/* Indicators */
+Indicators #tmux-label,
+Indicators #history-status,
+Indicators #mask-status {
+    padding: 0 1;
+    width: auto;
+}
+
+Indicators #tmux-label,
+Indicators #history-status {
+    border-left: round $foreground;
+}
+
+Indicators #tmux-input {
+    margin-right: 1;
+    width: 4;
+    border: none;
+}
+
+Indicators #mask-status {
+    border-left: round $foreground;
+    border-right: round $foreground;
+    box-sizing: border-box;
+}
+
+/* Lists */
+CheatHeader,
+CheatList {
+    padding: 0 1;
+    border: round $foreground;
+}
+
+CheatList {
+    height: 1fr;
+}
+
+MainScreen #title-list {
+    width: 30%;
+    max-width: 50;
+    color: $warning;
+}
+
+MainScreen #command-list {
+    width: 1fr;
+    color: $accent;
+}
+
+/* Globals strip */
+MainScreen #globals {
+    height: auto;
+    display: block;
+}
+
+MainScreen #globals-grid {
+    grid-columns: 1fr;
+    grid-rows: auto;
+    height: auto;
+}
+
+MainScreen #globals-grid Input.modified {
+    border: round $warning;
+}
+
+MainScreen #root {
+    margin: 0;
+}
+
+
+/* ============================================
+   VARIATIONS/BUILD SCREEN
+   ============================================ */
+
+VariationsScreen #panel {
+    width: 88vw;
+    height: 30;
+}
+
+VariationsScreen #preview {
+    margin: 1;
+}
+
+BuildScreen #panel {
+    margin: 0 5;
+    height: auto;
+}
+
+BuildScreen #title-bar {
+    content-align: left middle;
+}
+
+BuildScreen #title {
+    width: auto;
+    color: $warning;
+}
+
+BuildScreen .toggle-widget {
+    margin: 0 0 1 2;
+    padding: 0 1;
+    width: auto;
+    height: auto;
+    border: round $foreground 30%;
+}
+
+BuildScreen .toggle-widget.enabled {
+    color: $success;
+}
+
+BuildScreen .toggle-widget.disabled {
+    color: $error;
+}
+
+BuildScreen .toggle-widget:hover {
+    background: $primary 10%;
+    border: round $primary 50%;
+}
+
+BuildScreen #preview {
+    margin: 0 1 1 1;
+}
+
+BuildScreen #grid {
+    grid-rows: auto;
+    height: auto;
+}
+
+BuildScreen .parameter {
+    padding: 0 1;
+}
+
+BuildScreen #no-params-message {
+    padding: 0 1;
+    text-style: dim italic;
+}
+
+BuildScreen Input.marked {
+    border: round $warning;
+}
+
+.build-optionlist {
+    height: auto;
+}
+
+
+/* ============================================
+   GLOBALS EDITOR
+   ============================================ */
+
+GlobalEditor #panel {
+    width: 78;
+    height: auto;
+}
+
+GlobalEditor #history-container {
+    width: 1fr;
+    height: auto;
+}
+
+GlobalEditor #history-display {
+    margin-top: 1;
+    padding: 0 1;
+    height: auto;
+    border: round $foreground;
+}
+
+/* New global modal */
+NewGlobal #panel {
+    width: auto;
+    height: auto;
+}
+
+NewGlobal #grid {
+    width: 78;
+    height: auto;
+    grid-size: 2;
+    grid-rows: auto;
+    grid-columns: 1fr;
+}
+
+
+/* ============================================
+   CREDS EDITOR
+   ============================================ */
+
+CredEditor #panel {
+    width: auto;
+    height: 11;
+}
+
+CredEditor #grid {
+    width: 78; /* NT hash fit */
+    grid-size: 2;
+}
+
+
+/* ============================================
+   TREE SCREEN
+   ============================================ */
+
+TreeScreen #panel {
+    width: 110;
+    max-height: 88vh;
+}
+
+TreeScreen #tree {
+    margin: 1;
+    padding: 1 2;
+    width: 100%;
+    height: auto;
+    border: round $foreground 50%;
+}
+
+
+/* ============================================
+   CLASSES
+   ============================================ */
+
+.menu-panel {
+    width: 110;
+    max-height: 88vh;
+}
+
+.optionlist-table-header {
+    padding: 0 1;
+    width: 100%;
+    height: 2;
+    text-style: bold;
+    color: $warning;
+    border-left: round $foreground 50%;
+    border-top: round $foreground 50%;
+    border-right: round $foreground 50%;
+    border-bottom: none;
+}
+
+.optionlist-table {
+    padding: 0 1;
+    width: 100%;
+    height: 1fr;
+    border-top: none;
+}

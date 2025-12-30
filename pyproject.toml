@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=77.0.3"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aliasr"
+version = "1.0.0"
+description = "Modern TUI launcher for pentest commands"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "textual>=6.2.0",
+    "textual-autocomplete>=4.0.5",
+    "pykeepass>=4.0.0",
+    "pyperclip>=1.9.0",
+]
+
+[project.scripts]
+aliasr = "aliasr.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["aliasr*"]
+
+[tool.setuptools.package-data]
+aliasr = [
+    "tui/*.tcss",
+    "data/**/*",
+]
