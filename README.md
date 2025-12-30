@@ -1,6 +1,8 @@
 # Aliasr
 
+[![PyPI version](https://img.shields.io/pypi/v/aliasr?v1.0.0)](https://pypi.org/project/aliasr/)
 ![Python](https://img.shields.io/badge/python-3.11+-blue.svg)
+![License](https://img.shields.io/github/license/Mojo8898/aliasr)
 
 **Aliasr** is a modern, feature-rich TUI launcher for penetration testing commands inspired by [Arsenal](https://github.com/Orange-Cyberdefense/arsenal), but with significantly improved functionality.
 
