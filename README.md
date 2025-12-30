@@ -18,6 +18,11 @@ Some of the largest improvements Aliasr implements include:
 ## Install
 
 ```bash
+# Latest release (PyPI)
+uv tool install aliasr
+pipx install aliasr
+
+# Latest commit (GitHub)
 uv tool install git+https://github.com/Mojo8898/aliasr
 pipx install git+https://github.com/Mojo8898/aliasr
 ```
