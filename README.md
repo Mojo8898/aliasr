@@ -6,6 +6,8 @@
 
 **Aliasr** is a modern, feature-rich TUI launcher for penetration testing commands inspired by [Arsenal](https://github.com/Orange-Cyberdefense/arsenal), but with significantly improved functionality.
 
+![](./assets/demo.gif)
+
 ## Features
 
 Some of the largest improvements Aliasr implements include:
