@@ -226,11 +226,20 @@ def _save_cache(cache_path: Path) -> None:
 
 
 def load_cheats() -> None:
-    """Just load cache, don't verify."""
+    """Load cheats from cache or rebuild if files changed."""
     global _ALL, _TAGS, _TAG_TO, _REFS_BY_FILE, _DEFAULTS_BY_FILE
 
     cp = _cache_path()
+    files = _scan_md_files()
+
+    # Check if cache is valid
+    cache_valid = False
     if cp.exists():
+        cache_mtime = cp.stat().st_mtime
+        # Cache is valid if all markdown files are older than cache
+        cache_valid = all(f.stat().st_mtime <= cache_mtime for f in files)
+
+    if cache_valid:
         with cp.open("rb") as f:
             blob = pickle.load(f)
 
@@ -246,12 +255,10 @@ def load_cheats() -> None:
         for tag, indices in tag_to_indices.items():
             _TAG_TO[tag] = [_ALL[i] for i in indices]
         _TAG_TO["all"] = _ALL
-        return
-
-    # Only build if no cache exists
-    files = _scan_md_files()
-    _build_from_files(files)
-    _save_cache(cp)
+    else:
+        # Rebuild cache if invalid or missing
+        _build_from_files(files)
+        _save_cache(cp)
 
 
 def clear_cache() -> None:
