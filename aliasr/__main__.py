@@ -88,7 +88,7 @@ def _parser() -> argparse.ArgumentParser:
     )
     clear_sub = clear.add_subparsers(dest="clear_cmd", required=True)
     clear_sub.add_parser(
-        "cache", help="Clear cheats cache (mandatory if cheats have been updated)"
+        "cache", help="Clear cheats cache (rebuilds automatically when cheats change)"
     )
     clear_sub.add_parser("globals", help="Clear globals")
     clear_sub.add_parser("creds", help="Clear credentials")

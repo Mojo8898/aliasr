@@ -193,16 +193,7 @@ def _parse_markdown(
 
             # Reference value
             if current_ref:
-                # Check for special prefixes
-                if s.startswith("!path:"):
-                    # Parse as path list and expand
-                    refs[current_ref].extend(_expand_path_reference(s))
-                elif s.startswith("!cmd:"):
-                    # Parse as command and execute
-                    refs[current_ref].extend(_expand_cmd_reference(s))
-                else:
-                    # Regular value
-                    refs[current_ref].append(s)
+                refs[current_ref].append(s)
         else:
             # End of code fence
             if line.strip().startswith(fence):
@@ -236,18 +227,7 @@ def _parse_markdown(
                 if v:
                     defaults[name] = v
 
-    # Deduplicate reference values while preserving order
-    deduped_refs = {}
-    for param, values in refs.items():
-        seen = set()
-        deduped = []
-        for v in values:
-            if v not in seen:
-                seen.add(v)
-                deduped.append(v)
-        deduped_refs[param] = deduped
-
-    return cheats, deduped_refs, defaults
+    return cheats, refs, defaults
 
 
 # ---------- Caching ----------
@@ -380,8 +360,23 @@ def get_loaded_cheats() -> list[Cheat]:
 
 
 def get_param_refs(md_path: Path, param: str) -> list[str]:
-    """Get reference values for a parameter in a specific markdown file."""
-    return _REFS_BY_FILE.get(str(md_path), {}).get(param, [])
+    """Get reference values for a parameter in a specific markdown file.
+
+    Expands dynamic references (!path: and !cmd:) on-demand.
+    """
+    raw_refs = _REFS_BY_FILE.get(str(md_path), {}).get(param, [])
+
+    # Expand dynamic references
+    expanded = []
+    for ref in raw_refs:
+        if ref.startswith("!path:"):
+            expanded.extend(_expand_path_reference(ref))
+        elif ref.startswith("!cmd:"):
+            expanded.extend(_expand_cmd_reference(ref))
+        else:
+            expanded.append(ref)
+
+    return sorted(set(expanded))
 
 
 def get_param_default(md_path: Path, param: str) -> str | None:
