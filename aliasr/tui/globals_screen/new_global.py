@@ -29,6 +29,13 @@ class ValueInput(Input):
             self.action_select_all()
             self.focus()
 
+            # Hide SmartComplete dropdown after file selection
+            try:
+                sc = self.screen.query_one("#value-complete", SmartComplete)
+                sc.action_hide()
+            except Exception:
+                pass
+
         from aliasr.tui.tree_screen import TreeScreen
         self.app.push_screen(TreeScreen(), _done)
 

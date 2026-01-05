@@ -13,6 +13,7 @@ dependencies = [
     "textual-autocomplete>=4.0.5",
     "pykeepass>=4.0.0",
     "pyperclip>=1.9.0",
+    "rignore>=0.7.6",
 ]
 
 [project.scripts]

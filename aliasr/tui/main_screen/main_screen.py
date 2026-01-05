@@ -73,6 +73,11 @@ class MainScreen(Screen[None]):
         self.current_tag: str = ""
         self.matches: list = []
         self.selected_idx: int = 0
+        # Widget cache for performance (set in on_mount)
+        self._search_input: Input | None = None
+        self._search_bar = None
+        self._target_select = None
+        self._os_select = None
 
     # ---------- UI ----------
 
@@ -115,6 +120,12 @@ class MainScreen(Screen[None]):
 
         # Apply initial filters to show appropriate tabs
         sb._apply_filters()
+
+        # Cache widget references to avoid repeated DOM queries
+        self._search_input = self.query_one("#search", Input)
+        self._search_bar = sb
+        self._target_select = sb.query_one("#target-select", Select)
+        self._os_select = sb.query_one("#os-select", Select)
 
         self.refresh_matches()
 
@@ -481,12 +492,17 @@ class MainScreen(Screen[None]):
     def refresh_matches(self) -> None:
         from textual.widgets import Select
 
-        query = self.query_one("#search", Input).value or ""
+        # Use cached widget references if available, otherwise query DOM
+        if self._search_input is None:
+            self._search_input = self.query_one("#search", Input)
+            sb = self.query_one("#search-bar", MainSearch)
+            self._search_bar = sb
+            self._target_select = sb.query_one("#target-select", Select)
+            self._os_select = sb.query_one("#os-select", Select)
 
-        # Get filter values from Select widgets
-        sb = self.query_one("#search-bar", MainSearch)
-        target_value = sb.query_one("#target-select", Select).value
-        os_value = sb.query_one("#os-select", Select).value
+        query = self._search_input.value or ""
+        target_value = self._target_select.value
+        os_value = self._os_select.value
 
         # Handle Select.BLANK properly
         target_filter = "" if (target_value is Select.BLANK or target_value is None) else str(target_value)

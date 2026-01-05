@@ -419,13 +419,16 @@ class BuildScreen(ModalScreen[str | None]):
             w.value = result
             self._refresh_preview()
 
-            try:
-                sc = self.query_one(f"#{widget_id('sc-', w.id)}", SmartComplete)
-                sc.action_hide()
-            except Exception:
-                pass
+            def _focus_and_hide():
+                w.focus()
+                w.action_select_all()
+                try:
+                    sc = self.query_one(f"#{widget_id('sc-', w.id)}", SmartComplete)
+                    sc.action_hide()
+                except Exception:
+                    pass
 
-            self.call_after_refresh(lambda: (w.focus(), w.action_select_all()))
+            self.call_after_refresh(_focus_and_hide)
 
         from aliasr.tui.tree_screen import TreeScreen
         self.app.push_screen(TreeScreen(), _done)
