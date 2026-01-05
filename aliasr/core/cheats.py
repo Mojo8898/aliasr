@@ -1,9 +1,13 @@
+import ast
 import os
 import re
 import pickle
+import subprocess
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
+
+import rignore
 
 from aliasr.core.config import CHEAT_PATHS, CHEATS_EXCLUDE
 
@@ -26,6 +30,83 @@ _ID_SANITIZE_RE = re.compile(r"\W+")
 _TAG_RE = re.compile(r"#([\w/-]+)")
 _PH_RE = re.compile(r"<([^>\s]+)>")
 _PARAM_HEADER_RE = re.compile(r"^\s*-\s*([A-Za-z0-9_:-]+)\s*$")
+
+
+def _expand_path_reference(ref_value: str) -> list[str]:
+    """
+    Expand !path:[...] reference into list of file paths.
+
+    Example: !path:['/usr/share/wordlists', '/opt/SecLists']
+    Returns: All files found in those directories using rignore.Walker
+    """
+    # Extract path list from !path:[...]
+    try:
+        paths_str = ref_value[6:]  # Remove "!path:"
+        paths = ast.literal_eval(paths_str)  # Safely parse Python list
+        if not isinstance(paths, list):
+            return []
+    except (ValueError, SyntaxError):
+        return []
+
+    # Collect all files from specified paths
+    files = []
+    for path_str in paths:
+        path = Path(path_str).expanduser()
+        if not path.exists():
+            continue
+
+        if path.is_file():
+            files.append(str(path))
+        elif path.is_dir():
+            try:
+                for entry in rignore.Walker(str(path)):
+                    file_path = Path(entry)
+                    if file_path.is_file():
+                        files.append(str(file_path))
+            except Exception:
+                # Fallback to pathlib if rignore fails
+                try:
+                    for item in path.rglob("*"):
+                        if item.is_file():
+                            files.append(str(item))
+                except (PermissionError, OSError):
+                    pass
+
+    return sorted(files)
+
+
+def _expand_cmd_reference(ref_value: str) -> list[str]:
+    """
+    Expand !cmd:... reference by executing shell command.
+
+    Example: !cmd:find /usr/share/wordlists -type f -name '*.txt'
+    Returns: Each line of command output as a separate value
+    """
+    # Extract command from !cmd:...
+    cmd = ref_value[5:]  # Remove "!cmd:"
+    if not cmd.strip():
+        return []
+
+    try:
+        # Execute command with shell, capture output
+        result = subprocess.run(
+            cmd,
+            shell=True,
+            capture_output=True,
+            text=True,
+            timeout=10,  # 10 second timeout for safety
+        )
+
+        if result.returncode != 0:
+            return []
+
+        # Split output into lines, filter empty lines
+        lines = [line.strip() for line in result.stdout.split('\n')]
+        return [line for line in lines if line]
+
+    except (subprocess.TimeoutExpired, Exception):
+        return []
+
 
 _ALL: list[Cheat] = []
 _TAGS: list[str] = []
@@ -112,7 +193,16 @@ def _parse_markdown(
 
             # Reference value
             if current_ref:
-                refs[current_ref].append(s)
+                # Check for special prefixes
+                if s.startswith("!path:"):
+                    # Parse as path list and expand
+                    refs[current_ref].extend(_expand_path_reference(s))
+                elif s.startswith("!cmd:"):
+                    # Parse as command and execute
+                    refs[current_ref].extend(_expand_cmd_reference(s))
+                else:
+                    # Regular value
+                    refs[current_ref].append(s)
         else:
             # End of code fence
             if line.strip().startswith(fence):
@@ -146,7 +236,18 @@ def _parse_markdown(
                 if v:
                     defaults[name] = v
 
-    return cheats, refs, defaults
+    # Deduplicate reference values while preserving order
+    deduped_refs = {}
+    for param, values in refs.items():
+        seen = set()
+        deduped = []
+        for v in values:
+            if v not in seen:
+                seen.add(v)
+                deduped.append(v)
+        deduped_refs[param] = deduped
+
+    return cheats, deduped_refs, defaults
 
 
 # ---------- Caching ----------
