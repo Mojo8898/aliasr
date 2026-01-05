@@ -28,9 +28,29 @@ class TreeScreen(ModalScreen[str | None]):
         Binding("pagedown", "list_page_down"),
     ]
 
-    def __init__(self) -> None:
+    def __init__(self, initial_path: str = "") -> None:
         super().__init__()
-        self._current_path = Path.cwd().resolve()
+        self._initial_filter = ""
+
+        # Use provided path if valid, otherwise use as filter
+        if initial_path:
+            try:
+                path = Path(initial_path).expanduser().resolve()
+                if path.is_dir():
+                    self._current_path = path
+                elif path.is_file():
+                    # If it's a file, use its parent directory
+                    self._current_path = path.parent
+                else:
+                    # Not a valid path - use as filter
+                    self._current_path = Path.cwd().resolve()
+                    self._initial_filter = initial_path
+            except (OSError, ValueError):
+                # Invalid path - use as filter
+                self._current_path = Path.cwd().resolve()
+                self._initial_filter = initial_path
+        else:
+            self._current_path = Path.cwd().resolve()
         self._all_files: list[Path] = []
         self._current_filter = ""
 
@@ -146,8 +166,17 @@ class TreeScreen(ModalScreen[str | None]):
         file_list = self.query_one("#file-list", OptionList)
         file_list.can_focus = False
         self._all_files = self._scan_files()
-        self._populate_list()
-        self.query_one("#filter", TreeFilterInput).focus()
+
+        # Apply initial filter if provided
+        filter_input = self.query_one("#filter", TreeFilterInput)
+        if self._initial_filter:
+            filter_input.value = self._initial_filter
+            self._current_filter = self._initial_filter
+            self._populate_list(self._initial_filter)
+        else:
+            self._populate_list()
+
+        filter_input.focus()
 
     @on(Input.Changed, "#filter")
     def _filter_changed(self, event: Input.Changed) -> None:

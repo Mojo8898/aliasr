@@ -307,7 +307,7 @@ BuildScreen Input.marked {
 }
 
 .build-optionlist {
-    height: auto;
+    height: 1fr;
 }
 
 

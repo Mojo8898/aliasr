@@ -27,7 +27,13 @@ class ParamScreen(ModalScreen[str | dict[str, str] | None]):
         Binding(kb_root("next_tab"), "next_tab"),
     ]
 
-    def __init__(self, param: str, options: list[str], history: list[str]) -> None:
+    def __init__(
+        self,
+        param: str,
+        options: list[str],
+        history: list[str],
+        initial_filter: str = "",
+    ) -> None:
         super().__init__()
         self._param = param
         self._show_creds = param in {"user", "password", "nt_hash", "domain"}
@@ -35,6 +41,7 @@ class ParamScreen(ModalScreen[str | dict[str, str] | None]):
         self._history = history or []
         self._creds = None
         self._creds_loaded = False
+        self._initial_filter = initial_filter
 
     # ---------- UI ----------
 
@@ -92,6 +99,16 @@ class ParamScreen(ModalScreen[str | dict[str, str] | None]):
             self._populate_simple_list("#reference-list", self._refs)
         if self._history:
             self._populate_simple_list("#history-list", self._history)
+
+        # Apply initial filter to the first active tab
+        if self._initial_filter:
+            pid = self._active_pane_id()
+            if pid == "references":
+                self.query_one("#reference-filter", Input).value = self._initial_filter
+            elif pid == "history":
+                self.query_one("#history-filter", Input).value = self._initial_filter
+            elif pid == "credentials":
+                self.query_one("#credential-filter", Input).value = self._initial_filter
 
     # ---------- Internals ----------
 

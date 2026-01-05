@@ -402,7 +402,9 @@ class BuildScreen(ModalScreen[str | None]):
             self.call_after_refresh(lambda: (w.focus(), w.action_select_all()))
 
         from aliasr.tui.build_screen.param_screen import ParamScreen
-        self.app.push_screen(ParamScreen(param, refs, hist), _done)
+        # Pass current input value as initial filter
+        current_value = w.value if isinstance(w, Input) else ""
+        self.app.push_screen(ParamScreen(param, refs, hist, current_value), _done)
 
     def action_tree_screen(self) -> None:
         w = self.focused
@@ -431,7 +433,9 @@ class BuildScreen(ModalScreen[str | None]):
             self.call_after_refresh(_focus_and_hide)
 
         from aliasr.tui.tree_screen import TreeScreen
-        self.app.push_screen(TreeScreen(), _done)
+        # Pass current input value as initial path
+        current_value = w.value if isinstance(w, Input) else ""
+        self.app.push_screen(TreeScreen(initial_path=current_value), _done)
 
     def action_submit(self) -> None:
         if isinstance(self.focused, OptionList):
