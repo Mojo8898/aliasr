@@ -15,7 +15,7 @@ from textual.widgets import Footer, Input, OptionList, Static
 from textual_autocomplete import DropdownItem, TargetState
 
 from aliasr.core.cheats import get_param_refs
-from aliasr.core.config import BUILD_COLUMNS, GLOBALS_AUTO_KRB, kb_build_screen, kb_root
+from aliasr.core.config import BUILD_COLUMNS, BUILD_COLUMN_MIN_WIDTH, GLOBALS_AUTO_KRB, kb_build_screen, kb_root
 from aliasr.core.globals import get_history, load_globals, save_global
 from aliasr.tui.utils.grid_nav import GRID_NAV_BINDINGS, grid_nav
 from aliasr.tui.utils.common import widget_id
@@ -165,6 +165,7 @@ class BuildScreen(ModalScreen[str | None]):
                         inp = Input(placeholder="Enter value...", id=inp_id)
                         inp.border_title = name
                         inp.value = self._values[name]
+                        inp.styles.min_width = BUILD_COLUMN_MIN_WIDTH
                         self._id_to_name[inp_id] = name
                         self._inputs.append(inp)
                         yield inp
@@ -184,9 +185,43 @@ class BuildScreen(ModalScreen[str | None]):
             yield Footer()
 
     def on_mount(self) -> None:
+        # Calculate optimal width based on content
+        if self._params:
+            # Use actual number of params or BUILD_COLUMNS, whichever is smaller
+            actual_columns = min(len(self._params), BUILD_COLUMNS)
+
+            # Calculate width needed for the grid
+            # Each input: min_width + border (2) + 1 for spacing
+            per_input = BUILD_COLUMN_MIN_WIDTH + 3
+            # Column gutter is 2 cells between columns
+            column_gutter = 2
+            grid_width = (per_input * actual_columns) + ((actual_columns - 1) * column_gutter)
+        else:
+            grid_width = 60
+            actual_columns = 0
+
+        # Check preview width (command can be long)
+        preview_len = len(self._cmd)
+
+        # Width should accommodate grid or preview, whichever is wider
+        # Add panel padding (4 for left+right padding of 2 each)
+        desired_width = max(grid_width, min(preview_len, 200)) + 8
+
+        # Cap at 90% of screen width
+        screen_width = self.app.size.width
+        max_width = int(screen_width * 0.9)
+        width = min(desired_width, max_width)
+
+        # Set minimum width
+        width = max(60, width)
+
+        panel = self.query_one("#panel")
+        panel.styles.width = width
+        panel.styles.padding = (0, 2)  # (vertical, horizontal)
+
         if self._params:
             grid = self.query_one("#grid", Grid)
-            grid.styles.grid_size_columns = BUILD_COLUMNS
+            grid.styles.grid_size_columns = actual_columns
             grid.styles.grid_size_rows = self._row_count()
 
             # Set up caches for refs and history
@@ -284,7 +319,10 @@ class BuildScreen(ModalScreen[str | None]):
         self._preview.update(text)
 
     def _row_count(self) -> int:
-        return 1 if not self._inputs else ceil(len(self._inputs) / BUILD_COLUMNS)
+        if not self._inputs:
+            return 1
+        actual_columns = min(len(self._params), BUILD_COLUMNS)
+        return ceil(len(self._inputs) / actual_columns)
 
     def _reflect_value(self, name: str) -> None:
         val = self._values.get(name, "")

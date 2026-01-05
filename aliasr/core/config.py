@@ -267,5 +267,6 @@ CREDS_AUTO_HASH: bool = CONFIG.creds.auto_hash
 GLOBALS_ROWS: int = CONFIG.layout["globals_rows"]
 GLOBALS_COLUMNS: int = CONFIG.layout["globals_columns"]
 BUILD_COLUMNS: int = CONFIG.layout["build_columns"]
+BUILD_COLUMN_MIN_WIDTH: int = CONFIG.layout["build_column_min_width"]
 
 THEME: ThemeConf = CONFIG.theme

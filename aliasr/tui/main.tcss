@@ -250,7 +250,6 @@ VariationsScreen #preview {
 }
 
 BuildScreen #panel {
-    margin: 0 5;
     height: auto;
 }
 
@@ -290,6 +289,7 @@ BuildScreen #preview {
 
 BuildScreen #grid {
     grid-rows: auto;
+    grid-gutter: 1 2;  /* (row, column) spacing */
     height: auto;
 }
 

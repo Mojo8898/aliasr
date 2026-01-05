@@ -75,7 +75,8 @@ col_4 = "ctrl+g"  # Domain
 [layout]
 globals_rows = 2
 globals_columns = 6
-build_columns = 5
+build_columns = 4
+build_column_min_width = 40
 
 # See https://textual.textualize.io/guide/design/#base-colors for reference
 [theme]
