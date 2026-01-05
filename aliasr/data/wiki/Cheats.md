@@ -22,6 +22,44 @@ In this example, the parameter menu will include all values defined under the `w
 2. The placeholder defined in the associated cheatsheet, if one is defined.
 3. The first value in references, if any are defined.
 
+## Dynamic References
+
+References support dynamic expansion using special prefixes. Static values can be mixed with dynamic ones and will be added in the order listed. Duplicates are automatically removed.
+
+### !path: - Directory Expansion
+
+Expands directories into their file listings:
+
+``````md
+- wordlist
+/path/to/custom.txt
+!path:['/usr/share/wordlists', '/opt/SecLists/Passwords']
+``````
+
+All files in the specified directories are recursively scanned and added as options.
+
+### !cmd: - Command Execution
+
+Executes a shell command and uses each output line as a reference value:
+
+``````md
+- script
+!cmd:fd -t f -e py .
+``````
+
+Commands have a 10 second timeout. Only use in trusted cheat files.
+
+### Mixed Example
+
+Static values, path expansion, and command execution can be combined:
+
+``````md
+- wordlist
+/path/to/favorite.txt
+!path:['/usr/share/wordlists']
+!cmd:find /custom -name '*.txt'
+``````
+
 ## Variations
 
 A detailed reference on writing variations can be found [here](./Variations.md).
