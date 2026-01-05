@@ -35,6 +35,26 @@ key = "~/.exegol_history/db.key"
 mask = false
 auto_hash = true
 
+# File tree filtering configuration
+# See https://github.com/BurntSushi/ripgrep for documentation on ignore patterns
+# See https://github.com/patrick91/rignore for documentation on the library
+[rignore]
+ignore_hidden = false
+read_ignore_files = true
+read_parents_ignores = true
+read_git_ignore = true
+read_global_git_ignore = true
+read_git_exclude = true
+require_git = false
+additional_ignores = []
+additional_ignore_paths = []
+overrides = []
+max_depth = 0  # 0 means unlimited
+max_filesize = 0  # 0 means unlimited (bytes)
+follow_links = false
+case_insensitive = true
+same_file_system = true
+
 [keybindings]
 quit = "ctrl+c"
 copy_input = "ctrl+b"

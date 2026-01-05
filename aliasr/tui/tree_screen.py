@@ -9,7 +9,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Input, OptionList, Static
 from textual.widgets.option_list import Option
 
-from aliasr.core.config import kb_root
+from aliasr.core.config import RIGNORE, kb_root
 
 
 class TreeFilterInput(Input):
@@ -68,7 +68,24 @@ class TreeScreen(ModalScreen[str | None]):
         files = []
         try:
             # Use rignore for fast, gitignore-aware file walking
-            for entry in rignore.Walker(str(self._current_path)):
+            for entry in rignore.Walker(
+                str(self._current_path),
+                ignore_hidden=RIGNORE.ignore_hidden,
+                read_ignore_files=RIGNORE.read_ignore_files,
+                read_parents_ignores=RIGNORE.read_parents_ignores,
+                read_git_ignore=RIGNORE.read_git_ignore,
+                read_global_git_ignore=RIGNORE.read_global_git_ignore,
+                read_git_exclude=RIGNORE.read_git_exclude,
+                require_git=RIGNORE.require_git,
+                additional_ignores=RIGNORE.additional_ignores,
+                additional_ignore_paths=RIGNORE.additional_ignore_paths,
+                overrides=RIGNORE.overrides,
+                max_depth=RIGNORE.max_depth,
+                max_filesize=RIGNORE.max_filesize,
+                follow_links=RIGNORE.follow_links,
+                case_insensitive=RIGNORE.case_insensitive,
+                same_file_system=RIGNORE.same_file_system,
+            ):
                 file_path = Path(entry)
                 if file_path.is_file():
                     files.append(file_path)

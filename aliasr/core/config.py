@@ -36,6 +36,25 @@ class CredsConf:
 
 
 @dataclass(frozen=True)
+class RignoreConf:
+    ignore_hidden: bool | None
+    read_ignore_files: bool | None
+    read_parents_ignores: bool | None
+    read_git_ignore: bool | None
+    read_global_git_ignore: bool | None
+    read_git_exclude: bool | None
+    require_git: bool | None
+    additional_ignores: list[str] | None
+    additional_ignore_paths: list[str] | None
+    overrides: list[str] | None
+    max_depth: int | None
+    max_filesize: int | None
+    follow_links: bool | None
+    case_insensitive: bool | None
+    same_file_system: bool | None
+
+
+@dataclass(frozen=True)
 class KeyBindingsConf:
     root: dict[str, str]
     build_screen: dict[str, str]
@@ -66,6 +85,7 @@ class Config:
     cheats: CheatsConf
     globals: GlobalsConf
     creds: CredsConf
+    rignore: RignoreConf
     keybindings: KeyBindingsConf
     layout: dict[str, int]
     theme: ThemeConf
@@ -178,6 +198,31 @@ def _build_config() -> Config:
         auto_hash=bool(cr_raw["auto_hash"]),
     )
 
+    rignore_raw = dict(merged["rignore"])
+    # Map 0 to None for unlimited depth/filesize
+    max_depth = rignore_raw.get("max_depth")
+    max_depth = None if max_depth == 0 else max_depth
+    max_filesize = rignore_raw.get("max_filesize")
+    max_filesize = None if max_filesize == 0 else max_filesize
+
+    rignore_conf = RignoreConf(
+        ignore_hidden=rignore_raw.get("ignore_hidden"),
+        read_ignore_files=rignore_raw.get("read_ignore_files"),
+        read_parents_ignores=rignore_raw.get("read_parents_ignores"),
+        read_git_ignore=rignore_raw.get("read_git_ignore"),
+        read_global_git_ignore=rignore_raw.get("read_global_git_ignore"),
+        read_git_exclude=rignore_raw.get("read_git_exclude"),
+        require_git=rignore_raw.get("require_git"),
+        additional_ignores=rignore_raw.get("additional_ignores"),
+        additional_ignore_paths=rignore_raw.get("additional_ignore_paths"),
+        overrides=rignore_raw.get("overrides"),
+        max_depth=max_depth,
+        max_filesize=max_filesize,
+        follow_links=rignore_raw.get("follow_links"),
+        case_insensitive=rignore_raw.get("case_insensitive"),
+        same_file_system=rignore_raw.get("same_file_system"),
+    )
+
     kb_raw = dict(merged["keybindings"])
     table = dict(kb_raw.get("table", {}))
     table_copy = table.pop("copy", {})
@@ -213,6 +258,7 @@ def _build_config() -> Config:
         cheats=cheats_conf,
         globals=g_conf,
         creds=cr_conf,
+        rignore=rignore_conf,
         keybindings=kb_conf,
         layout=layout_dict,
         theme=theme_conf,
@@ -263,6 +309,8 @@ CREDS_KDBX: Path = Path(CONFIG.creds.kdbx)
 CREDS_KEY: Path = Path(CONFIG.creds.key)
 CREDS_MASK: bool = CONFIG.creds.mask
 CREDS_AUTO_HASH: bool = CONFIG.creds.auto_hash
+
+RIGNORE: RignoreConf = CONFIG.rignore
 
 GLOBALS_ROWS: int = CONFIG.layout["globals_rows"]
 GLOBALS_COLUMNS: int = CONFIG.layout["globals_columns"]
