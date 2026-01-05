@@ -37,6 +37,12 @@ class CredsConf:
 
 @dataclass(frozen=True)
 class RignoreConf:
+    """Configuration for rignore file tree walker.
+
+    Controls ignore patterns, depth limits, and file filtering behavior
+    when scanning directories. All fields default to None, which uses
+    rignore's library defaults.
+    """
     ignore_hidden: bool | None
     read_ignore_files: bool | None
     read_parents_ignores: bool | None

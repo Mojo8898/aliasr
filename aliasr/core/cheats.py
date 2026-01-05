@@ -81,6 +81,9 @@ def _expand_cmd_reference(ref_value: str) -> list[str]:
 
     Example: !cmd:find /usr/share/wordlists -type f -name '*.txt'
     Returns: Each line of command output as a separate value
+
+    Security: Commands are executed with shell=True. Only use trusted
+    markdown files as command injection is possible.
     """
     # Extract command from !cmd:...
     cmd = ref_value[5:]  # Remove "!cmd:"

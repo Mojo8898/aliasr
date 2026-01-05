@@ -124,18 +124,14 @@ class TreeScreen(ModalScreen[str | None]):
             scored.sort(key=lambda x: x[0], reverse=True)
             # Limit to 500 results for performance
             display_files = scored[:500]
-        else:
-            # Limit to 500 files when no filter
-            display_files = [(0, rel, fp) for rel, fp in relative_files[:500]]
 
-        # Add options with highlighting
-        if filter_query.strip():
-            matcher = Matcher(filter_query, case_sensitive=False)
+            # Add options with highlighting (reuse matcher from above)
             for score, rel_str, full_path in display_files:
-                # Use matcher.highlight() to get Rich Text with styling
                 highlighted_text = matcher.highlight(rel_str)
                 file_list.add_option(Option(highlighted_text, id=str(full_path)))
         else:
+            # Limit to 500 files when no filter
+            display_files = [(0, rel, fp) for rel, fp in relative_files[:500]]
             for score, rel_str, full_path in display_files:
                 file_list.add_option(Option(rel_str, id=str(full_path)))
 
