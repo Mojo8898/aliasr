@@ -12,16 +12,16 @@ from textual.widgets.option_list import Option
 from aliasr.core.config import RIGNORE, kb_root
 
 
-class TreeFilterInput(Input):
+class FilePickerFilterInput(Input):
     """Input widget for filtering files."""
 
     pass
 
 
-class TreeScreen(ModalScreen[str | None]):
+class FilePickerScreen(ModalScreen[str | None]):
     BINDINGS = [
         Binding("escape", "cancel"),
-        Binding(kb_root("tree_screen"), "cancel"),
+        Binding(kb_root("file_picker_screen"), "cancel"),
         Binding("up", "list_up"),
         Binding("down", "list_down"),
         Binding("pageup", "list_page_up"),
@@ -54,7 +54,7 @@ class TreeScreen(ModalScreen[str | None]):
     def compose(self) -> ComposeResult:
         with Vertical(id="panel"):
             yield Static(self._make_title(), id="title")
-            yield TreeFilterInput(placeholder="Search files...", id="filter")
+            yield FilePickerFilterInput(placeholder="Search files...", id="filter")
             yield OptionList(id="file-list")
 
     def _make_title(self) -> str:
@@ -177,7 +177,7 @@ class TreeScreen(ModalScreen[str | None]):
         file_list.can_focus = False
         self._all_files = self._scan_files()
         self._populate_list()
-        self.query_one("#filter", TreeFilterInput).focus()
+        self.query_one("#filter", FilePickerFilterInput).focus()
 
     @on(Input.Changed, "#filter")
     def _filter_changed(self, event: Input.Changed) -> None:

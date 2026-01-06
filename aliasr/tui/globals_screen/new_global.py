@@ -14,14 +14,14 @@ from aliasr.tui.utils.smart_complete import SmartComplete
 class ValueInput(Input):
     BINDINGS = [
         Binding(
-            kb_root("tree_screen"),
-            "open_tree_screen",
-            "Tree",
-            tooltip="Open the tree menu for the currently focused value.",
+            kb_root("file_picker_screen"),
+            "open_file_picker_screen",
+            "File Picker",
+            tooltip="Open the file picker menu for the currently focused value.",
         ),
     ]
 
-    def action_open_tree_screen(self) -> None:
+    def action_open_file_picker_screen(self) -> None:
         def _done(result: str | None) -> None:
             if result is None:
                 return
@@ -36,8 +36,8 @@ class ValueInput(Input):
             except Exception:
                 pass
 
-        from aliasr.tui.tree_screen import TreeScreen
-        self.app.push_screen(TreeScreen(), _done)
+        from aliasr.tui.file_picker_screen import FilePickerScreen
+        self.app.push_screen(FilePickerScreen(), _done)
 
 
 class NewGlobal(ModalScreen[tuple[str, str] | None]):

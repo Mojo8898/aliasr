@@ -28,10 +28,10 @@ class GlobalsGrid(Horizontal):
             tooltip="Open the globals editor menu for the currently focused global.",
         ),
         Binding(
-            kb_root("tree_screen"),
-            "tree_screen",
-            "Tree",
-            tooltip="Open the tree menu for the currently focused global.",
+            kb_root("file_picker_screen"),
+            "file_picker_screen",
+            "File Picker",
+            tooltip="Open the file picker menu for the currently focused global.",
         ),
         
         Binding(
@@ -156,7 +156,7 @@ class GlobalsGrid(Horizontal):
 
         self.app.push_screen(GlobalEditor(key), _done)
 
-    def action_tree_screen(self) -> None:
+    def action_file_picker_screen(self) -> None:
         key = self._focused_key()
         if not key:
             return
@@ -169,9 +169,9 @@ class GlobalsGrid(Horizontal):
             w.focus()
             w.action_select_all()
 
-        from aliasr.tui.tree_screen import TreeScreen
+        from aliasr.tui.file_picker_screen import FilePickerScreen
 
-        self.app.push_screen(TreeScreen(), _done)
+        self.app.push_screen(FilePickerScreen(), _done)
 
     def action_focus_search(self) -> None:
         """Switch focus to search input."""

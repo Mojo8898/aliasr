@@ -60,10 +60,10 @@ class BuildScreen(ModalScreen[str | None]):
             tooltip="Open the parameter menu for the currently focused parameter.",
         ),
         Binding(
-            kb_root("tree_screen"),
-            "tree_screen",
-            "Tree",
-            tooltip="Open tree menu for the currently focused parameter.",
+            kb_root("file_picker_screen"),
+            "file_picker_screen",
+            "File Picker",
+            tooltip="Open file picker menu for the currently focused parameter.",
         ),
     ]
 
@@ -453,7 +453,7 @@ class BuildScreen(ModalScreen[str | None]):
         from aliasr.tui.build_screen.param_screen import ParamScreen
         self.app.push_screen(ParamScreen(param, refs, hist), _done)
 
-    def action_tree_screen(self) -> None:
+    def action_file_picker_screen(self) -> None:
         w = self.focused
         if not isinstance(w, Input) or not getattr(w, "id", None):
             return
@@ -479,10 +479,10 @@ class BuildScreen(ModalScreen[str | None]):
 
             self.call_after_refresh(_focus_and_hide)
 
-        from aliasr.tui.tree_screen import TreeScreen
+        from aliasr.tui.file_picker_screen import FilePickerScreen
         # Pass current input value as initial path
         current_value = w.value if isinstance(w, Input) else ""
-        self.app.push_screen(TreeScreen(initial_path=current_value), _done)
+        self.app.push_screen(FilePickerScreen(initial_path=current_value), _done)
 
     def action_submit(self) -> None:
         if isinstance(self.focused, OptionList):

@@ -71,7 +71,7 @@ cycle_select_focus = "ctrl+y"  # Refers to dropdown boxes in top right of main s
 globals_editor = "ctrl+g"  # While focusing the globals grid
 globals_screen = "ctrl+o"
 creds_screen = "ctrl+l"
-tree_screen = "ctrl+t"
+file_picker_screen = "ctrl+t"
 
 [keybindings.build_screen]
 param_screen = "ctrl+r"

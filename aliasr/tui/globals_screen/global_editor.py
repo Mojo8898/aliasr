@@ -40,9 +40,9 @@ class GlobalEditor(ModalScreen[str | None]):
         ),
 
         Binding(
-            kb_root("tree_screen"),
-            "tree_screen",
-            "Tree",
+            kb_root("file_picker_screen"),
+            "file_picker_screen",
+            "File Picker",
         ),
     ]
 
@@ -235,7 +235,7 @@ class GlobalEditor(ModalScreen[str | None]):
             self._select(self._sel + 1)
         self._save_now()
 
-    def action_tree_screen(self) -> None:
+    def action_file_picker_screen(self) -> None:
         def _done(result: str | None) -> None:
             if result is None:
                 return
@@ -243,9 +243,9 @@ class GlobalEditor(ModalScreen[str | None]):
             inp.value = result
             inp.action_select_all()
 
-        from aliasr.tui.tree_screen import TreeScreen
+        from aliasr.tui.file_picker_screen import FilePickerScreen
 
-        self.app.push_screen(TreeScreen(), _done)
+        self.app.push_screen(FilePickerScreen(), _done)
 
     def action_save(self) -> None:
         v = self._save_now()
