@@ -24,6 +24,8 @@ class GlobalsConf:
     max_len: int
     show_grid: bool
     auto_krb: bool
+    rows: int
+    columns: int
     defaults: dict[str, str | list[str]]
 
 
@@ -33,6 +35,13 @@ class CredsConf:
     key: str
     mask: bool
     auto_hash: bool
+
+
+@dataclass(frozen=True)
+class BuildConf:
+    focus: str
+    columns: int
+    column_min_width: int
 
 
 @dataclass(frozen=True)
@@ -91,9 +100,9 @@ class Config:
     cheats: CheatsConf
     globals: GlobalsConf
     creds: CredsConf
+    build: BuildConf
     rignore: RignoreConf
     keybindings: KeyBindingsConf
-    layout: dict[str, int]
     theme: ThemeConf
 
 
@@ -187,12 +196,15 @@ def _build_config() -> Config:
                 else:
                     defaults_dict[k] = str(v)
 
+    g_layout_raw = dict(g_conf_raw["layout"])
     g_conf = GlobalsConf(
         path=os.path.expanduser(g_conf_raw["path"]),
         history=bool(g_conf_raw["history"]),
         max_len=int(g_conf_raw["max_len"]),
         show_grid=bool(g_conf_raw["show_grid"]),
         auto_krb=bool(g_conf_raw["auto_krb"]),
+        rows=int(g_layout_raw["rows"]),
+        columns=int(g_layout_raw["columns"]),
         defaults=defaults_dict,
     )
 
@@ -202,6 +214,14 @@ def _build_config() -> Config:
         key=os.path.expanduser(cr_raw["key"]),
         mask=bool(cr_raw["mask"]),
         auto_hash=bool(cr_raw["auto_hash"]),
+    )
+
+    build_raw = dict(merged["build"])
+    build_layout_raw = dict(build_raw["layout"])
+    build_conf = BuildConf(
+        focus=str(build_raw["focus"]),
+        columns=int(build_layout_raw["columns"]),
+        column_min_width=int(build_layout_raw["column_min_width"]),
     )
 
     rignore_raw = dict(merged["rignore"])
@@ -258,15 +278,13 @@ def _build_config() -> Config:
         footer_key_foreground=theme_raw["footer_key_foreground"],
     )
 
-    layout_dict = {k: int(v) for k, v in merged["layout"].items()}
-
     return Config(
         cheats=cheats_conf,
         globals=g_conf,
         creds=cr_conf,
+        build=build_conf,
         rignore=rignore_conf,
         keybindings=kb_conf,
-        layout=layout_dict,
         theme=theme_conf,
     )
 
@@ -309,6 +327,8 @@ GLOBALS_SHOW_GRID: bool = CONFIG.globals.show_grid
 GLOBALS_HISTORY: bool = CONFIG.globals.history
 GLOBALS_MAX_LEN: int = CONFIG.globals.max_len
 GLOBALS_AUTO_KRB: bool = CONFIG.globals.auto_krb
+GLOBALS_ROWS: int = CONFIG.globals.rows
+GLOBALS_COLUMNS: int = CONFIG.globals.columns
 DEFAULT_GLOBALS: dict[str, str | list[str]] = CONFIG.globals.defaults
 
 CREDS_KDBX: Path = Path(CONFIG.creds.kdbx)
@@ -318,9 +338,8 @@ CREDS_AUTO_HASH: bool = CONFIG.creds.auto_hash
 
 RIGNORE: RignoreConf = CONFIG.rignore
 
-GLOBALS_ROWS: int = CONFIG.layout["globals_rows"]
-GLOBALS_COLUMNS: int = CONFIG.layout["globals_columns"]
-BUILD_COLUMNS: int = CONFIG.layout["build_columns"]
-BUILD_COLUMN_MIN_WIDTH: int = CONFIG.layout["build_column_min_width"]
+BUILD_COLUMNS: int = CONFIG.build.columns
+BUILD_COLUMN_MIN_WIDTH: int = CONFIG.build.column_min_width
+BUILD_FOCUS: str = CONFIG.build.focus
 
 THEME: ThemeConf = CONFIG.theme

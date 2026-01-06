@@ -15,6 +15,10 @@ max_len = 50
 show_grid = true
 auto_krb = false
 
+[globals.layout]
+rows = 2
+columns = 6
+
 [globals.defaults]
 lhost = [""]
 lport = [""]
@@ -92,11 +96,12 @@ col_2 = "ctrl+t"  # Password/Value
 col_3 = "ctrl+y"  # NT Hash
 col_4 = "ctrl+g"  # Domain
 
-[layout]
-globals_rows = 2
-globals_columns = 6
-build_columns = 4
-build_column_min_width = 40
+[build]
+focus = "first_unfilled_param"  # Options: "first_param" (always focus first), "first_unfilled_param" (focus first empty)
+
+[build.layout]
+columns = 4
+column_min_width = 40
 
 # See https://textual.textualize.io/guide/design/#base-colors for reference
 [theme]

@@ -15,7 +15,7 @@ from textual.widgets import Footer, Input, OptionList, Static
 from textual_autocomplete import DropdownItem, TargetState
 
 from aliasr.core.cheats import get_param_refs
-from aliasr.core.config import BUILD_COLUMNS, BUILD_COLUMN_MIN_WIDTH, GLOBALS_AUTO_KRB, kb_build_screen, kb_root
+from aliasr.core.config import BUILD_COLUMNS, BUILD_COLUMN_MIN_WIDTH, BUILD_FOCUS, GLOBALS_AUTO_KRB, kb_build_screen, kb_root
 from aliasr.core.globals import get_history, load_globals, save_global
 from aliasr.tui.utils.grid_nav import GRID_NAV_BINDINGS, grid_nav
 from aliasr.tui.utils.common import widget_id
@@ -92,19 +92,20 @@ class BuildScreen(ModalScreen[str | None]):
             if name not in self._params:
                 self._params[name] = name in CRED_PARAMS
 
-                # Determine initial value with priority
-                # if placeholder:
-                #     self._values[name] = placeholder
-                # else:
-                #     refs = get_param_refs(md_path, name)
-                #     if refs:
-                #         self._values[name] = refs[0]
-                #     else:
-                #         self._values[name] = self.app.globals.get(name, "")
-
-                first_global = self.app.globals.get(name, "")
-                first_reference = (get_param_refs(md_path, name) or [""])[0]
-                self._values[name] = first_global or placeholder or first_reference
+                # Priority: globals > history[0] > placeholder > empty
+                global_value = self.app.globals.get(name, "")
+                if global_value:
+                    self._values[name] = global_value
+                else:
+                    # Get most recent history value
+                    hist = get_history(name)
+                    hist_value = hist[0] if hist else ""
+                    if hist_value:
+                        self._values[name] = hist_value
+                    elif placeholder:
+                        self._values[name] = placeholder
+                    else:
+                        self._values[name] = ""
 
         # Auto-fill credential parameters with most recent credential
         has_cred_params = any(name in CRED_PARAMS for name in self._params)
@@ -229,16 +230,23 @@ class BuildScreen(ModalScreen[str | None]):
                 self._refs_cache[name] = get_param_refs(self._md_path, name)
                 self._hist_cache[name] = get_history(name)
 
-            # Focus first unfilled input or first if all filled
-            for inp in self._inputs:
-                if not inp.value.strip():
-                    inp.focus()
-                    inp.action_select_all()
-                    break
-            else:
+            # Focus based on config: first_param or first_unfilled_param
+            if BUILD_FOCUS == "first_param":
+                # Always focus first parameter
                 if self._inputs:
                     self._inputs[0].focus()
                     self._inputs[0].action_select_all()
+            else:
+                # Focus first unfilled input or first if all filled (default behavior)
+                for inp in self._inputs:
+                    if not inp.value.strip():
+                        inp.focus()
+                        inp.action_select_all()
+                        break
+                else:
+                    if self._inputs:
+                        self._inputs[0].focus()
+                        self._inputs[0].action_select_all()
         else:
             self.focus()
 
