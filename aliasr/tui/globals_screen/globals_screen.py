@@ -33,13 +33,13 @@ class GlobalsScreen(ModalScreen[bool | None]):
         Binding(
             kb_table_copy("col_1"),
             "copy_global",
-            "Global",
+            "Copy Global",
             tooltip="Copy the selected global key.",
         ),
         Binding(
             kb_table_copy("col_2"),
             "copy_value",
-            "Value",
+            "Copy Value",
             tooltip="Copy the selected global value.",
         ),
     ]

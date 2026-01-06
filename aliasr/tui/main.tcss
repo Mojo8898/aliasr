@@ -399,7 +399,7 @@ TreeScreen #tree {
    ============================================ */
 
 .menu-panel {
-    width: 110;
+    width: 120;
     max-height: 88vh;
 }
 

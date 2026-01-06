@@ -40,19 +40,19 @@ class MainScreen(Screen[None]):
         Binding(
             kb_root("cycle_grid_focus"),
             "cycle_grid_focus",
-            "Grid",
+            "Focus Grid",
             tooltip="Switch focus to the globals grid.",
         ),
         Binding(
             kb_root("cycle_filter_focus"),
             "cycle_filter_focus",
-            "Filter",
+            "Focus Filter",
             tooltip="Switch focus between search and filter inputs.",
         ),
         Binding(
             kb_root("cycle_select_focus"),
-            "cycle_select_focus", 
-            "Selects",
+            "cycle_select_focus",
+            "Focus Selects",
             tooltip="Switch focus between search and select dropdowns.",
         ),
 
@@ -128,6 +128,7 @@ class MainScreen(Screen[None]):
         self._os_select = sb.query_one("#os-select", Select)
 
         self.refresh_matches()
+        self.refresh_bindings()
 
         # Add initial size check after layout is complete
         def _check_initial_size():
@@ -135,6 +136,7 @@ class MainScreen(Screen[None]):
                 if self.globals_panel.display:
                     self._focus_search_if_focused_globals()
                     self.globals_panel.display = False
+                    self.refresh_bindings()
 
         self.call_after_refresh(_check_initial_size)
 
@@ -280,6 +282,12 @@ class MainScreen(Screen[None]):
         wid = getattr(w, "id", "") if isinstance(w, Input) else ""
         return wid[2:] if wid.startswith("g-") else None
 
+    def check_action(self, action: str, parameters: tuple) -> bool | None:
+        """Control dynamic binding visibility."""
+        if action == "cycle_grid_focus":
+            return self.globals_panel.display if hasattr(self, "globals_panel") else False
+        return True
+
     # ---------- Actions ----------
 
     def action_select_previous(self) -> None:
@@ -374,6 +382,7 @@ class MainScreen(Screen[None]):
     def action_toggle_grid(self) -> None:
         """Toggle globals grid visibility."""
         self.globals_panel.display = not self.globals_panel.display
+        self.refresh_bindings()
 
         def _refresh():
             ev = Resize(self.size, self.size)
@@ -546,10 +555,12 @@ class MainScreen(Screen[None]):
         if self.title_list.size.height > 1:
             if not self.globals_panel.display and GLOBALS_SHOW_GRID:
                 self.globals_panel.display = True
+                self.refresh_bindings()
         else:
             if self.globals_panel.display:
                 self._focus_search_if_focused_globals()
                 self.globals_panel.display = False
+                self.refresh_bindings()
 
     @on(Click, "#title,#command")
     def _focus_search_from_click(self, event: Click) -> None:
