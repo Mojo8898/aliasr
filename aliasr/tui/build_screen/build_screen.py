@@ -439,13 +439,16 @@ class BuildScreen(ModalScreen[str | None]):
 
             self._refresh_preview()
 
-            try:
-                sc = self.query_one(f"#{widget_id('sc-', w.id)}", SmartComplete)
-                sc.action_hide()
-            except Exception:
-                pass
+            def _focus_and_hide():
+                w.focus()
+                w.action_select_all()
+                try:
+                    sc = self.query_one(f"#{widget_id('sc-', w.id)}", SmartComplete)
+                    sc.action_hide()
+                except Exception:
+                    pass
 
-            self.call_after_refresh(lambda: (w.focus(), w.action_select_all()))
+            self.call_after_refresh(_focus_and_hide)
 
         from aliasr.tui.build_screen.param_screen import ParamScreen
         self.app.push_screen(ParamScreen(param, refs, hist), _done)
