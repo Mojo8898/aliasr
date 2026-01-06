@@ -164,8 +164,9 @@ class GlobalsGrid(Horizontal):
         def _done(path: str | None) -> None:
             if path is None:
                 return
-            self._commit_value(key, path)
             w = self.query_one(f"#{widget_id('g-', key)}", Input)
+            w.value = path
+            self._commit_value(key, path)
             w.focus()
             w.action_select_all()
 
