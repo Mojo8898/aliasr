@@ -98,6 +98,17 @@ def _load_user_toml() -> dict[str | None]:
     return {}
 
 
+def _load_local_toml() -> dict[str | None]:
+    """Load local config from ALIASR_LOCAL_CONFIG environment variable."""
+    env = os.getenv("ALIASR_LOCAL_CONFIG")
+    if env:
+        p = Path(os.path.expandvars(os.path.expanduser(env)))
+        if p.is_file():
+            with p.open("rb") as f:
+                return tomllib.load(f)
+    return {}
+
+
 def _deep_update(
     base: dict[str | None], override: dict[str | None]
 ) -> dict[str | None]:
@@ -116,7 +127,10 @@ def _deep_update(
 def _build_config() -> Config:
     defaults = _load_defaults()
     user = _load_user_toml()
+    local = _load_local_toml()
+
     merged = _deep_update(defaults, user)
+    merged = _deep_update(merged, local)
 
     cheats_raw = dict(merged["cheats"])
     pkg_cheats_path = Path(files("aliasr") / "data" / "cheats")
@@ -162,7 +176,7 @@ def _build_config() -> Config:
                     defaults_dict[k] = str(v)
 
     g_conf = GlobalsConf(
-        path=os.path.expanduser(g_conf_raw["path"]),
+        path=os.path.expandvars(os.path.expanduser(g_conf_raw["path"])),
         history=bool(g_conf_raw["history"]),
         max_len=int(g_conf_raw["max_len"]),
         show_grid=bool(g_conf_raw["show_grid"]),
@@ -172,8 +186,8 @@ def _build_config() -> Config:
 
     cr_raw = dict(merged["creds"])
     cr_conf = CredsConf(
-        kdbx=os.path.expanduser(cr_raw["kdbx"]),
-        key=os.path.expanduser(cr_raw["key"]),
+        kdbx=os.path.expandvars(os.path.expanduser(cr_raw["kdbx"])),
+        key=os.path.expandvars(os.path.expanduser(cr_raw["key"])),
         mask=bool(cr_raw["mask"]),
         auto_hash=bool(cr_raw["auto_hash"]),
     )

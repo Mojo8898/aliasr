@@ -533,6 +533,7 @@ def audit_config() -> int:
     
     # Check config file location
     config_path = None
+    local_config_path = None
     candidates = []
     
     if os.getenv("ALIASR_CONFIG"):
@@ -546,6 +547,10 @@ def audit_config() -> int:
     # Always check the default home location
     candidates.append(Path.home() / ".config" / "aliasr" / "config.toml")
     
+    # Check for local config
+    if os.getenv("ALIASR_LOCAL_CONFIG"):
+        local_config_path = Path(os.path.expandvars(os.path.expanduser(os.environ["ALIASR_LOCAL_CONFIG"])))
+
     # Remove duplicates while preserving order
     seen = set()
     unique_candidates = []
@@ -555,13 +560,29 @@ def audit_config() -> int:
             seen.add(path)
             unique_candidates.append(path)
     
-    console.print(_panel("CONFIG FILE SEARCH"))
+    console.print(_panel("CONFIG FILE HIERARCHY"))
     console.print()
     
+    console.print("  [dim]Priority (highest to lowest):[/]\n")
+    # Show local config first (highest priority)
+    if local_config_path:
+        exists = local_config_path.is_file()
+        marker = "[green]✓[/]" if exists else "[red]✗[/]"
+        priority = "[bold yellow]LOCAL[/]"
+        console.print(f"  {marker} {priority} {local_config_path}")
+        if exists:
+            console.print(f"      [dim]Set via: ALIASR_LOCAL_CONFIG={os.environ.get('ALIASR_LOCAL_CONFIG')}[/]")
+    else:
+        console.print(f"  [dim]○ LOCAL (not set)[/]")
+        console.print(f"      [dim]Set ALIASR_LOCAL_CONFIG to use local config[/]")
+
+    console.print()
+
     for path in candidates:
         exists = path.is_file()
         marker = "[green]✓[/]" if exists else "[red]✗[/]"
-        console.print(f"  {marker} {path}")
+        priority = "[bold blue]USER[/]"
+        console.print(f"  {marker} {priority}  {path}")
         if exists and config_path is None:
             config_path = path
     
