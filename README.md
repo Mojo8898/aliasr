@@ -76,11 +76,9 @@ options:
 
 ## Configuration
 
-Aliasr allows you to configure pretty much everything. Refer to the built-in `config.toml` found [here](./aliasr/data/config.toml) to see what configurations options are available.
+Aliasr allows you to configure pretty much everything. Refer to the built-in `config.toml` found [here](./aliasr/data/config.toml) to see what configurations options are available. A detailed configuration guide can be found in [Configuration](./aliasr/data/wiki/Configuration.md).
 
 Create your own config in `~/.config/aliasr/config.toml` to edit existing configurations and changes will automatically be merged at runtime.
-
-**Note:** Paths set in the environment variables `XDG_CONFIG_HOME` and `ALIASR_CONFIG` will be used instead if set.
 
 ## Cheats
 
@@ -88,7 +86,7 @@ A detailed reference guide on writing cheats can be found [here](./aliasr/data/w
 
 ## Contributing
 
-Contributions are welcome but make sure you if you are contributing to cheats, you follow guidelines in [Cheats Reference](./aliasr/data/wiki/Cheats.md). Also feel free to open an issue if you want to add other features.
+Contributions are welcome but make sure you if you are contributing to cheats, you follow guidelines in [Cheats](./aliasr/data/wiki/Cheats.md). Also feel free to open an issue if you want to add other features.
 
 Detailed development setup instructions can be found in the [official Textual documentation](https://textual.textualize.io/guide/devtools/).
 
