@@ -95,7 +95,7 @@ def get_all_variations(cmd: str, params: list[str]) -> dict[str, list[Variation]
     load_variations()
     head = _head(cmd)
     per_param = _VARS.get(head, {})
-    
+
     result = {}
     for p in params:
         variations = []
@@ -116,7 +116,7 @@ def get_all_variations(cmd: str, params: list[str]) -> dict[str, list[Variation]
         
         if variations:
             result[p] = variations
-    
+
     return result
 
 
@@ -124,11 +124,11 @@ def is_variation_param(cmd: str, param: str) -> bool:
     """Check if a parameter has variations (command-specific or universal)."""
     load_variations()
     head = _head(cmd)
-    
+
     # Check command-specific first
     if param in _VARS.get(head, {}):
         return True
-    
+
     # Check universal
     return param in _UNIVERSAL_VARS
 

@@ -151,7 +151,7 @@ class BuildScreen(ModalScreen[str | None]):
                 
                 if self._krb_global:
                     yield Static("krb5ccname? ", id="krb-toggle", classes="toggle-widget")
-                    
+
                 if self._prefix_global:
                     yield Static("aliasr_prefix? ", id="prefix-toggle", classes="toggle-widget")
 

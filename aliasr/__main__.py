@@ -42,7 +42,7 @@ def _parser() -> argparse.ArgumentParser:
     )
 
     # ---------- Scan ----------
-    
+
     scan = sub.add_parser("scan", help="Auto-populate globals from a target IP")
     scan.add_argument(
         "ip",
@@ -54,7 +54,7 @@ def _parser() -> argparse.ArgumentParser:
         metavar="USER",
         help="Username for authenticated scan"
     )
-    
+
     # Authentication options (mutually exclusive)
     auth_group = scan.add_mutually_exclusive_group()
     auth_group.add_argument(
@@ -114,11 +114,11 @@ def main() -> int:
         from aliasr.audit import run_audit_cli
 
         return run_audit_cli(args.list_all, args.audit_cmd)
-    
+
     if args.cmd == "list":
         from aliasr.core.list import run_list
         return run_list(args.list_cmd)
-    
+
     if args.cmd == "scan":
         from aliasr.core.scan import run_scan_cli
         return run_scan_cli(

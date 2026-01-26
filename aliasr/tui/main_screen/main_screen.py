@@ -506,7 +506,7 @@ class MainScreen(Screen[None]):
                     target_tag = f"target/{target_filter}"
                     if target_tag not in cheat_tags:
                         continue
-                    
+
                 # Check OS filter
                 if os_filter:
                     os_tag = f"os/{os_filter}"

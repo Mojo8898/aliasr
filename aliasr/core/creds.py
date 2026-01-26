@@ -205,7 +205,7 @@ def load_creds() -> list[Credential]:
 def save_creds(creds: Iterable[Credential]) -> None:
     """Save credentials to all storage layers, removing duplicates."""
     global _MEMO
-    
+
     unique_creds = _deduplicate_creds(creds, materialize=True)
     _MEMO = list(unique_creds)
     Thread(target=_kp.write, args=(unique_creds,), daemon=False).start()
