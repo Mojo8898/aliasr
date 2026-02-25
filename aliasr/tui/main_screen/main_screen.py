@@ -488,9 +488,9 @@ class MainScreen(Screen[None]):
         target_value = sb.query_one("#target-select", Select).value
         os_value = sb.query_one("#os-select", Select).value
 
-        # Handle Select.BLANK properly
-        target_filter = "" if (target_value is Select.BLANK or target_value is None) else str(target_value)
-        os_filter = "" if (os_value is Select.BLANK or os_value is None) else str(os_value)
+        # Handle Select.NULL properly
+        target_filter = "" if (target_value is Select.NULL or target_value is None) else str(target_value)
+        os_filter = "" if (os_value is Select.NULL or os_value is None) else str(os_value)
 
         # Start with current tag's cheats or all cheats
         pool = self.tag_to_cheats.get(self.current_tag, [])

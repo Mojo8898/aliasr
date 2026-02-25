@@ -46,7 +46,7 @@ class CheatTags(Tabs):
 
     def _filter_by_type(self, tag: str) -> bool:
         """Check if a tag should be shown based on tag type filter."""
-        # If no type filter is set (blank/empty), show all tags
+        # If no type filter is set (null/empty), show all tags
         if not self._tag_type_filter:
             return True
 
@@ -95,14 +95,14 @@ class CheatTags(Tabs):
         tag_type_filter: str = "",
     ) -> None:
         """Apply all filters to tabs"""
-        # Handle Select.BLANK values
+        # Handle Select.NULL values
         from textual.widgets import Select
 
-        if target_filter is Select.BLANK or target_filter is None:
+        if target_filter is Select.NULL or target_filter is None:
             target_filter = ""
-        if os_filter is Select.BLANK or os_filter is None:
+        if os_filter is Select.NULL or os_filter is None:
             os_filter = ""
-        if tag_type_filter is Select.BLANK or tag_type_filter is None:
+        if tag_type_filter is Select.NULL or tag_type_filter is None:
             tag_type_filter = ""
 
         self._target_filter = str(target_filter).lower()
@@ -296,22 +296,22 @@ class MainSearch(Vertical):
         """Get tag names that match current filters."""
         from textual.widgets import Select
 
-        # Get filter values and handle Select.BLANK
+        # Get filter values and handle Select.NULL
         target_value = self.query_one("#target-select", Select).value
         os_value = self.query_one("#os-select", Select).value
         tag_type_value = self.query_one("#tag-type-select", Select).value
 
         target_filter = (
             ""
-            if (target_value is Select.BLANK or target_value is None)
+            if (target_value is Select.NULL or target_value is None)
             else str(target_value)
         )
         os_filter = (
-            "" if (os_value is Select.BLANK or os_value is None) else str(os_value)
+            "" if (os_value is Select.NULL or os_value is None) else str(os_value)
         )
         tag_type_filter = (
             ""
-            if (tag_type_value is Select.BLANK or tag_type_value is None)
+            if (tag_type_value is Select.NULL or tag_type_value is None)
             else str(tag_type_value)
         )
 
@@ -359,23 +359,23 @@ class MainSearch(Vertical):
 
         tabs = self.query_one("#tabs", CheatTags)
 
-        # Get filter values, handling Select.BLANK properly
+        # Get filter values, handling Select.NULL properly
         target_value = self.query_one("#target-select", Select).value
         os_value = self.query_one("#os-select", Select).value
         tag_type_value = self.query_one("#tag-type-select", Select).value
 
-        # Convert Select.BLANK to empty string
+        # Convert Select.NULL to empty string
         target_filter = (
             ""
-            if (target_value is Select.BLANK or target_value is None)
+            if (target_value is Select.NULL or target_value is None)
             else str(target_value)
         )
         os_filter = (
-            "" if (os_value is Select.BLANK or os_value is None) else str(os_value)
+            "" if (os_value is Select.NULL or os_value is None) else str(os_value)
         )
         tag_type_filter = (
             ""
-            if (tag_type_value is Select.BLANK or tag_type_value is None)
+            if (tag_type_value is Select.NULL or tag_type_value is None)
             else str(tag_type_value)
         )
         tag_filter = self.query_one("#tag-filter", Input).value or ""
