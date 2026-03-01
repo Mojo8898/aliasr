@@ -3,5 +3,5 @@
 
 ## Dump git web endpoint
 ```
-git-dumper '<proto|http>://<fqdn><path>/.git/' <fqdn>
+git-dumper '<url>' <fqdn>
 ```

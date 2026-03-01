@@ -3,12 +3,12 @@
 
 ## Test GET request
 ```
-sqlmap -u <url> -p <param> --batch
+sqlmap -u '<url>' -p <param> --batch
 ```
 
 ## Test POST request with cookie
 ```
-sqlmap -u <url> --cookie '<cookie>' --data '<data>' -p <param> --batch
+sqlmap -u '<url>' --cookie '<cookie>' --data '<data>' -p <param> --batch
 ```
 
 ## Test request from burp
