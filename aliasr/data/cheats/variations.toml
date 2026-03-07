@@ -79,7 +79,7 @@ Kerberos = "-k --no-pass"
 [smbclientng.auth]
 Password = "-p '<password>'"
 "NT hash" = "--hashes <nt_hash>"
-Kerberos = "-k --no-pass"
+Kerberos = "--ccache-file $KRB5CCNAME"
 
 [ewp.auth]
 Password = "-u '<user>' -p '<password>'"
