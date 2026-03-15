@@ -1,9 +1,9 @@
 # hackthebox
 #target/remote #os/linux
 
-## recon_setup.py
+## recon-setup
 ```
-recon_setup.py <machine_name> -v <vpn_path> -s <session_path> -i <ip> -a
+recon-setup <machine_name> -v <vpn_path> -s <session_path|~/htb/machines> -a -i <ip>
 ```
 
 ## cradle_gen.py
