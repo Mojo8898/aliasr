@@ -47,6 +47,28 @@ This is optional — the current-credential default works regardless, because
 aliasr reads it from the `profile.sh` file (a single shared location), not from
 the environment of whichever pane or shell launched it.
 
+## Hosts (Exegol-history)
+
+Host globals are shared with Exegol-history the same way credentials are. On a
+build that uses them, aliasr upserts the values into exegol's shared `hosts`
+table (in `exh.db`) and sets the matching `profile.sh` variables:
+
+| aliasr global | exegol `hosts` row     | profile.sh var(s)  |
+| ------------- | ---------------------- | ------------------ |
+| `ip`          | target row `ip`        | `IP`, `TARGET`     |
+| `fqdn`        | target row `hostname`  | `DB_HOSTNAME`      |
+| `dc_ip`       | DC row `ip` (role=DC)  | `DC_IP`            |
+| `dc_fqdn`     | DC row `hostname` (DC) | `DC_HOST`          |
+
+The DC is stored as a separate `hosts` row with `role = "DC"`, which is what
+drives exegol's `DC_IP` / `DC_HOST`. Only the host fields a command actually
+uses are written, so building against a target leaves the DC pinned — matching
+exegol's own set-host behavior. Host writes **upsert** (keyed on `ip` +
+`hostname`) and never delete, so hosts you added in exegol are preserved. When
+exegol has a host set, aliasr seeds those build fields from it, just like the
+current credential. (`DOMAIN` is a credential field in exegol, so it syncs with
+the credential, not here; `domain_sid` has no exegol equivalent.)
+
 ## Projects
 
 Aliasr supports project-specific configs with the tool `direnv`.

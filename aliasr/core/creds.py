@@ -55,8 +55,8 @@ CREATE TABLE IF NOT EXISTS hosts (
 """
 
 
-class _CredsDB:
-    """Thread-safe wrapper over the shared SQLite credentials store."""
+class _ExhDB:
+    """Thread-safe wrapper over the shared SQLite store (credentials + hosts)."""
 
     def __init__(self) -> None:
         self._lock = RLock()
@@ -169,6 +169,39 @@ class _CredsDB:
                 conn.execute("DELETE FROM credentials")
                 conn.commit()
 
+    def read_hosts(self) -> list:
+        """Return every host, oldest first (NULLs surfaced as empty strings)."""
+        with self._lock:
+            with self._connect() as conn:
+                rows = conn.execute(
+                    "SELECT host_id, ip, hostname, role FROM hosts ORDER BY host_id"
+                ).fetchall()
+        from aliasr.core.hosts import Host
+
+        return [
+            Host(ip=r[1] or "", hostname=r[2] or "", role=r[3] or "", host_id=r[0])
+            for r in rows
+        ]
+
+    def write_hosts(self, hosts) -> None:
+        """Upsert hosts on (ip, hostname); never deletes, so exegol-added hosts
+        and the credentials table are left intact."""
+        payload = [
+            (h.ip or None, h.hostname or None, h.role or None)
+            for h in hosts
+            if (h.ip or h.hostname)
+        ]
+        if not payload:
+            return
+        with self._lock:
+            with self._connect() as conn:
+                conn.executemany(
+                    "INSERT INTO hosts (ip, hostname, role) VALUES (?, ?, ?) "
+                    "ON CONFLICT(ip, hostname) DO UPDATE SET role=excluded.role",
+                    payload,
+                )
+                conn.commit()
+
 
 # ---------- Helpers ----------
 
@@ -243,7 +276,7 @@ def nt_hash(password: str) -> str:
 
 
 _MEMO: list[Credential] | None = None
-_db = _CredsDB()
+_db = _ExhDB()
 
 
 def load_creds() -> list[Credential]:

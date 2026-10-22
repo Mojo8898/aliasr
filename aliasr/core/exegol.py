@@ -1,12 +1,12 @@
 """Bridge to Exegol-history's shell profile (profile.sh).
 
-Exegol-history records the "currently selected" credential as four environment
-variables (USER, PASSWORD, NT_HASH, DOMAIN) exported from a profile.sh buffer
-that Exegol shells source. We read and write that same file, in the same format
-exegol uses, so the current credential is shared 1-to-1 between the two tools.
+Exegol-history records the "currently selected" credential and host as
+environment variables exported from a profile.sh buffer that Exegol shells
+source. We read and write that same file, in the same format exegol uses, so
+the current credential and host are shared 1-to-1 between the two tools.
 
 Writing profile.sh cannot change an already-running shell's environment; it
-takes effect the next time a shell sources the file — a new shell, or the
+takes effect the next time a shell sources the file -- a new shell, or the
 ``exec zsh`` that exegol's ``exh`` wrapper performs.
 """
 import re
@@ -14,35 +14,68 @@ from pathlib import Path
 
 from aliasr.core.config import CREDS_PROFILE
 
-# Order matches exegol_history.cli.utils.CREDS_VARIABLES.
-_VARS = ("USER", "PASSWORD", "NT_HASH", "DOMAIN")
+# Order matches exegol_history.cli.utils.CREDS_VARIABLES / HOSTS_VARIABLES.
+_CRED_VARS = ("USER", "PASSWORD", "NT_HASH", "DOMAIN")
+_HOST_VARS = ("IP", "TARGET", "DB_HOSTNAME", "DC_HOST", "DC_IP")
+_TEMPLATE_VARS = _CRED_VARS + _HOST_VARS
 
-# A credential is "currently set" only on an active (uncommented) export line.
+# A variable is "currently set" only on an active (uncommented) export line.
 _ACTIVE_RE = re.compile(r"^export\s+([A-Za-z0-9_]+)='(.*)'\s*$")
 # Mirrors exegol's VARIABLE_REGEX_UNIX; matches commented template lines too, so
-# `set` uncomments them exactly as exegol-history does.
+# an update uncomments them exactly as exegol-history does.
 _UPDATE_RE = re.compile(r"(?:export|unset) ([\w\d]*)(?:='.*?')?")
+
+
+def _read_active_vars(path: Path | None) -> dict[str, str]:
+    path = path or CREDS_PROFILE
+    if not path:
+        return {}
+    try:
+        lines = Path(path).read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return {}
+    vals: dict[str, str] = {}
+    for line in lines:
+        m = _ACTIVE_RE.match(line.strip())
+        if m:
+            vals[m.group(1)] = m.group(2)
+    return vals
+
+
+def _write_vars(mapping: dict[str, str], path: Path | None) -> None:
+    """Update the given exports in profile.sh (value -> export, empty -> unset),
+    exactly like exegol-history's parse_and_update."""
+    path = path or CREDS_PROFILE
+    if not path:
+        return
+    try:
+        p = Path(path)
+        if p.exists():
+            lines = p.read_text(encoding="utf-8").splitlines(keepends=True)
+        else:
+            p.parent.mkdir(parents=True, exist_ok=True)
+            lines = [f"#export {v}=''\n" for v in _TEMPLATE_VARS]
+        for i, line in enumerate(lines):
+            m = _UPDATE_RE.search(line)
+            if not m:
+                continue
+            name = m.group(1)
+            if name in mapping:
+                value = mapping[name]
+                lines[i] = f"export {name}='{value}'\n" if value else f"unset {name}\n"
+        p.write_text("".join(lines), encoding="utf-8")
+    except OSError:
+        pass
+
+
+# ---------- Credentials ----------
 
 
 def current_credential(path: Path | None = None):
     """Return the credential exegol-history currently has set, or None."""
-    path = path or CREDS_PROFILE
-    if not path:
+    vals = _read_active_vars(path)
+    if not any(vals.get(v) for v in _CRED_VARS):
         return None
-    try:
-        lines = Path(path).read_text(encoding="utf-8").splitlines()
-    except OSError:
-        return None
-
-    vals: dict[str, str] = {}
-    for line in lines:
-        m = _ACTIVE_RE.match(line.strip())
-        if m and m.group(1) in _VARS:
-            vals[m.group(1)] = m.group(2)
-
-    if not any(vals.get(v) for v in _VARS):
-        return None
-
     from aliasr.core.creds import Credential
 
     return Credential(
@@ -55,33 +88,58 @@ def current_credential(path: Path | None = None):
 
 def set_current_credential(cred, path: Path | None = None) -> None:
     """Write `cred` into profile.sh exactly as exegol-history's `set` does."""
-    path = path or CREDS_PROFILE
-    if not path:
-        return
+    _write_vars(
+        {
+            "USER": cred.username,
+            "PASSWORD": cred.password,
+            "NT_HASH": cred.hash,
+            "DOMAIN": cred.domain,
+        },
+        path,
+    )
 
-    mapping = {
-        "USER": cred.username,
-        "PASSWORD": cred.password,
-        "NT_HASH": cred.hash,
-        "DOMAIN": cred.domain,
-    }
-    try:
-        p = Path(path)
-        if p.exists():
-            lines = p.read_text(encoding="utf-8").splitlines(keepends=True)
-        else:
-            p.parent.mkdir(parents=True, exist_ok=True)
-            lines = [f"#export {v}=''\n" for v in _VARS]
 
-        for i, line in enumerate(lines):
-            m = _UPDATE_RE.search(line)
-            if not m:
-                continue
-            name = m.group(1)
-            if name in mapping:
-                value = mapping[name]
-                lines[i] = f"export {name}='{value}'\n" if value else f"unset {name}\n"
+# ---------- Hosts ----------
 
-        p.write_text("".join(lines), encoding="utf-8")
-    except OSError:
-        pass
+
+def current_host(path: Path | None = None) -> dict[str, str]:
+    """Return exegol-history's current host as aliasr globals, e.g.
+    ``{"ip": ..., "fqdn": ..., "dc_ip": ..., "dc_fqdn": ...}`` (set ones only)."""
+    vals = _read_active_vars(path)
+    out: dict[str, str] = {}
+    if vals.get("IP"):
+        out["ip"] = vals["IP"]
+    if vals.get("DB_HOSTNAME"):
+        out["fqdn"] = vals["DB_HOSTNAME"]
+    if vals.get("DC_IP"):
+        out["dc_ip"] = vals["DC_IP"]
+    if vals.get("DC_HOST"):
+        out["dc_fqdn"] = vals["DC_HOST"]
+    return out
+
+
+def set_current_host(
+    ip: str | None = None,
+    fqdn: str | None = None,
+    dc_ip: str | None = None,
+    dc_fqdn: str | None = None,
+    path: Path | None = None,
+) -> None:
+    """Write host variables into profile.sh the way exegol-history does.
+
+    Only fields passed (not None) are touched, so syncing a target host leaves
+    the DC_* variables pinned -- matching exegol's own set-host behavior. ``IP``
+    and ``TARGET`` both track the target ip.
+    """
+    mapping: dict[str, str] = {}
+    if ip is not None:
+        mapping["IP"] = ip
+        mapping["TARGET"] = ip
+    if fqdn is not None:
+        mapping["DB_HOSTNAME"] = fqdn
+    if dc_ip is not None:
+        mapping["DC_IP"] = dc_ip
+    if dc_fqdn is not None:
+        mapping["DC_HOST"] = dc_fqdn
+    if mapping:
+        _write_vars(mapping, path)

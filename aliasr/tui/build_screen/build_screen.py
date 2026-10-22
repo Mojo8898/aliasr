@@ -124,6 +124,14 @@ class BuildScreen(ModalScreen[str | None]):
                     if param_name in self._params and not self._values.get(param_name) and cred_value:
                         self._values[param_name] = cred_value
 
+        # Seed host params from exegol-history's current host (profile.sh),
+        # shared the same way as the current credential.
+        if {"ip", "fqdn", "dc_ip", "dc_fqdn"} & set(self._params):
+            from aliasr.core.exegol import current_host
+            for pname, val in current_host().items():
+                if pname in self._params and val:
+                    self._values[pname] = val
+
         self._preview: Static | None = None
         self._inputs: list[Input] = []
         self._id_to_name: dict[str, str] = {}
@@ -442,6 +450,32 @@ class BuildScreen(ModalScreen[str | None]):
 
             self.app.globals.clear()
             self.app.globals.update(load_globals())
+
+        # Sync host globals to exegol-history: the shared exh.db hosts table and
+        # the profile.sh host vars. Only fields this command used are touched, so
+        # a target-only build leaves the DC_* vars pinned, matching exegol.
+        host_fields = {"ip", "fqdn", "dc_ip", "dc_fqdn"} & set(self._params)
+        if host_fields:
+            from aliasr.core.exegol import set_current_host
+            from aliasr.core.hosts import Host, save_hosts
+
+            vals = {
+                n: (self._values.get(n, "") or "").strip()
+                for n in ("ip", "fqdn", "dc_ip", "dc_fqdn")
+            }
+            rows = []
+            if ("ip" in host_fields or "fqdn" in host_fields) and (vals["ip"] or vals["fqdn"]):
+                rows.append(Host(ip=vals["ip"], hostname=vals["fqdn"], role=""))
+            if ("dc_ip" in host_fields or "dc_fqdn" in host_fields) and (vals["dc_ip"] or vals["dc_fqdn"]):
+                rows.append(Host(ip=vals["dc_ip"], hostname=vals["dc_fqdn"], role="DC"))
+            if rows:
+                save_hosts(rows)
+            set_current_host(
+                ip=vals["ip"] if "ip" in host_fields else None,
+                fqdn=vals["fqdn"] if "fqdn" in host_fields else None,
+                dc_ip=vals["dc_ip"] if "dc_ip" in host_fields else None,
+                dc_fqdn=vals["dc_fqdn"] if "dc_fqdn" in host_fields else None,
+            )
 
         # Rest of the method...
         built = self._replace_placeholders(self._cmd)
