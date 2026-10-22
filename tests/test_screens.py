@@ -51,6 +51,39 @@ async def test_tab_switch_updates_matches(app):
         assert app.screen.current_tag != "all"  # moved off the first tab
 
 
+async def test_tag_filter_hides_tabs(app):
+    """The tag filter hides non-matching tabs and keeps the active tab visible.
+
+    CheatTags toggles the -hidden class itself (not Tabs.show/hide), so this
+    guards that a hidden active tab still hands off to a visible one.
+    """
+    from textual.widgets import Tab
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        tabs = app.screen.query_one("#tabs")
+
+        def visible() -> list[Tab]:
+            return [t for t in tabs.query(Tab) if not t.has_class("-hidden")]
+
+        total = len(visible())
+        assert tabs.active == "tab-all"
+
+        app.screen.query_one("#tag-filter", Input).focus()
+        await pilot.press("a", "w", "s")
+        await pilot.pause()
+        shown = visible()
+        assert 0 < len(shown) < total
+        assert all("aws" in str(t.label) for t in shown)  # "all" is hidden too
+        assert tabs.active in {t.id for t in shown}
+        assert app.screen.current_tag == tabs._id_to_tag[tabs.active]
+
+        await pilot.press("backspace", "backspace", "backspace")
+        await pilot.pause()
+        assert len(visible()) == total
+        assert tabs.active == "tab-all"
+
+
 async def test_globals_screen_mounts(app):
     async with app.run_test() as pilot:
         await pilot.pause()

@@ -11,7 +11,7 @@ from textual.binding import Binding
 from textual.containers import Grid, HorizontalGroup, Vertical
 from textual.events import Click
 from textual.screen import ModalScreen
-from textual.widgets import Footer, Input, OptionList, Static
+from textual.widgets import Input, OptionList, Static
 from textual_autocomplete import DropdownItem, TargetState
 
 from aliasr.core.cheats import get_param_refs
@@ -20,6 +20,7 @@ from aliasr.core.globals import get_history, load_globals, save_global
 from aliasr.tui.utils.grid_nav import GRID_NAV_BINDINGS, grid_nav
 from aliasr.tui.utils.common import widget_id
 from aliasr.tui.utils.smart_complete import SmartComplete
+from aliasr.tui.utils.footer import Footer
 
 
 PLACEHOLDER_RE = re.compile(r"<([^>\s]+)>")

@@ -3,10 +3,11 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Footer, Input, Static
+from textual.widgets import Input, Static
 
 from aliasr.core.config import GLOBALS_HISTORY, kb_root, kb_table
 from aliasr.tui.utils.smart_complete import SmartComplete
+from aliasr.tui.utils.footer import Footer
 
 
 class GlobalEditor(ModalScreen[str | None]):

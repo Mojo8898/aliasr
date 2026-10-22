@@ -6,7 +6,7 @@ from textual.containers import Horizontal, Vertical
 from textual.events import Click, MouseScrollUp, MouseScrollDown, Resize
 from textual.fuzzy import FuzzySearch
 from textual.screen import Screen
-from textual.widgets import Footer, Input, Select, Tabs
+from textual.widgets import Input, Select, Tabs
 
 from aliasr.core.config import GLOBALS_SHOW_GRID, kb_root
 from aliasr.core.cheats import build_tag_index
@@ -16,6 +16,7 @@ from aliasr.tui.main_screen.header import CheatHeader
 from aliasr.tui.main_screen.search_bar.search_bar import MainSearch
 from aliasr.tui.utils.common import widget_id
 from aliasr.tui.utils.smart_complete import SmartComplete
+from aliasr.tui.utils.footer import Footer
 
 class MainScreen(Screen[None]):
     BINDINGS = [

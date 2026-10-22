@@ -4,7 +4,7 @@ from textual.binding import Binding
 from textual.containers import Vertical
 from textual.fuzzy import Matcher
 from textual.screen import ModalScreen
-from textual.widgets import Footer, Input, OptionList, Static
+from textual.widgets import Input, OptionList, Static
 
 from aliasr.core.config import kb_root, kb_table_copy
 from aliasr.core.globals import (
@@ -20,6 +20,7 @@ from aliasr.tui.utils.tables import (
     TABLE_BINDINGS,
     TABLE_MOVE_BINDINGS,
 )
+from aliasr.tui.utils.footer import Footer
 
 
 class GlobalsScreen(ModalScreen[bool | None]):

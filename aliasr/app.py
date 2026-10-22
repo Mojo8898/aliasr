@@ -1,19 +1,17 @@
-from importlib.resources import files
-from pathlib import Path
 from threading import Thread
 
 from textual.app import App
 from textual.binding import Binding
 from textual.widgets import Input
 
-from aliasr.core.config import kb_root, THEME
+from aliasr.core.config import PKG_DIR, kb_root, THEME
 from aliasr.tui.main_screen.globals_grid import GlobalsGrid
 from aliasr.tui.main_screen.main_screen import MainScreen
 from aliasr.tui.theme import BUNDLED_THEMES
 
 
 class Aliasr(App[None]):
-    CSS_PATH = Path(files("aliasr") / "tui" / "main.tcss")
+    CSS_PATH = PKG_DIR / "tui" / "main.tcss"
 
     BINDINGS = [
         Binding(
@@ -57,19 +55,36 @@ class Aliasr(App[None]):
         self.tmux_target_pane = tmux_target_pane
         self.globals: dict[str, str] = {}
         self.cheats: list = []
+        self._init_theme()
+
+    def _init_theme(self) -> None:
+        """Apply the configured theme before Textual first parses the CSS.
+
+        Assigning `self.theme` queues a full CSS re-parse and restyle of every
+        widget (~40 ms of startup), so set it silently and do what
+        App._watch_theme does, minus that refresh.
+        """
+        theme = BUNDLED_THEMES.get(THEME.name)
+        if theme:
+            self.register_theme(theme)
+        name = THEME.name
+        if name not in self.available_themes:
+            self.register_theme(BUNDLED_THEMES["aliasr"])
+            name = "aliasr"
+
+        self.set_reactive(App.theme, name)
+        dark = self.current_theme.dark
+        classes = {c: False for c in self.classes if c.startswith("-theme-")}
+        classes[f"-theme-{name}"] = True
+        classes["-dark-mode"] = dark
+        classes["-light-mode"] = not dark
+        self.update_classes(classes, update=False)
+        self._refresh_truecolor_filter(self.ansi_theme)
+        self.stylesheet.set_variables(self.get_css_variables())
 
     # ---------- UI ----------
 
     def on_mount(self) -> None:
-        theme = BUNDLED_THEMES.get(THEME.name)
-        if theme:
-            self.register_theme(theme)
-        try:
-            self.theme = THEME.name
-        except Exception:
-            self.register_theme(BUNDLED_THEMES["aliasr"])
-            self.theme = "aliasr"
-
         def _background_load():
             from aliasr.core.creds import load_creds
             from aliasr.core.variations import load_variations

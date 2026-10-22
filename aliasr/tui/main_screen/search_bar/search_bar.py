@@ -18,8 +18,23 @@ class CheatTags(Tabs):
         self._target_filter = ""
         self._os_filter = ""
         self._tag_type_filter = ""
+        self._tab_widgets: dict[str, Tab] = {}
 
     # ---------- Helpers ----------
+
+    def _set_visible(self, visible_ids: list[str]) -> None:
+        """Show exactly visible_ids; hide the rest.
+
+        Toggles the -hidden class directly with one underline update, rather than
+        Tabs.show()/hide(), which query, post a message and re-highlight per tab.
+        """
+        shown = set(visible_ids)
+        for tid, tab in self._tab_widgets.items():
+            tab.set_class(tid not in shown, "-hidden")
+        # Active tab hidden (or none yet): fall back to the first visible ("all" leads)
+        if self.active not in shown:
+            self.active = visible_ids[0] if visible_ids else ""
+        self.call_after_refresh(self._highlight_active)
 
     def _get_visible_tags(self, tags: list[str]) -> list[str]:
         """Get tags that match the current filters and tag query"""
@@ -66,6 +81,7 @@ class CheatTags(Tabs):
         self.clear()
         self._all_tags = tags  # Store ALL tags
         self._id_to_tag.clear()
+        self._tab_widgets = {}
 
         # Only create tabs for tags we want to show initially
         # But keep all tags in _all_tags for filtering
@@ -81,7 +97,11 @@ class CheatTags(Tabs):
                 if not display_name:
                     display_name = full_tag
 
-            self.add_tab(Tab(display_name, id=tid))
+            self._tab_widgets[tid] = Tab(display_name, id=tid)
+
+        # One bulk mount; add_tab() per tag queries and mounts each separately
+        if self._tab_widgets:
+            self.query_one("#tabs-list").mount_all(self._tab_widgets.values())
 
         desired = current if current in tags else (tags[0] if tags else "")
         desired_id = widget_id("tab-", desired) if desired else ""
@@ -111,11 +131,13 @@ class CheatTags(Tabs):
         if not scr or scr.__class__.__name__ != "MainScreen":
             # Just apply tag query and type filters
             visible = self._get_visible_tags(self._all_tags)
-            for tid, name in self._id_to_tag.items():
-                if name in visible and self._filter_by_type(name):
-                    self.show(tid)
-                else:
-                    self.hide(tid)
+            self._set_visible(
+                [
+                    tid
+                    for tid, name in self._id_to_tag.items()
+                    if name in visible and self._filter_by_type(name)
+                ]
+            )
             return
 
         # Build set of tags that have matching cheats
@@ -154,9 +176,8 @@ class CheatTags(Tabs):
                     if tag_prefix == self._tag_type_filter:
                         matching_tags.add(tag)
 
-        # Track which tabs will be visible
-        visible_tabs = set()
-        current_active = self.active
+        # Track which tabs will be visible (in tab order)
+        visible_tabs = []
 
         # Show/hide tabs based on matching tags and filters
         for tid, tag in self._id_to_tag.items():
@@ -176,25 +197,15 @@ class CheatTags(Tabs):
                     should_show = True
 
             if should_show:
-                self.show(tid)
-                visible_tabs.add(tid)
-            else:
-                self.hide(tid)
+                visible_tabs.append(tid)
 
         # Handle case where no tabs match - always show "all" as fallback
         all_id = widget_id("tab-", "all")
         if not visible_tabs and all_id in self._id_to_tag:
-            self.show(all_id)
-            visible_tabs.add(all_id)
+            visible_tabs.append(all_id)
 
-        # If current active tab is hidden, switch to a visible one
-        if current_active and current_active not in visible_tabs:
-            # Prefer "all" tab if visible
-            if all_id in visible_tabs:
-                self.active = all_id
-            # Otherwise pick the first visible tab
-            elif visible_tabs:
-                self.active = next(iter(visible_tabs))
+        # Also moves a hidden active tab to "all" (or the first visible)
+        self._set_visible(visible_tabs)
 
 
 class MainSearch(Vertical):
@@ -476,6 +487,5 @@ class MainSearch(Vertical):
         if CHEATS_DEFAULT_GROUPING:
             # Check if the configured default exists in the options
             if CHEATS_DEFAULT_GROUPING.lower() in self._tag_types:
+                # Filters are applied by the caller (MainScreen.on_mount)
                 tag_type_select.value = CHEATS_DEFAULT_GROUPING.lower()
-                # Apply the filter with this default if it exists
-                self._apply_filters()

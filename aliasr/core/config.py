@@ -1,7 +1,6 @@
 import os
 import tomllib
 from dataclasses import dataclass
-from importlib.resources import as_file, files
 from pathlib import Path
 from typing import Any
 
@@ -75,6 +74,11 @@ class Config:
 # ---------- Helpers ----------
 
 
+# The installed package dir. Plain path math instead of importlib.resources,
+# whose import (+ zipfile) costs ~9 ms of startup for a package that's always on disk.
+PKG_DIR: Path = Path(__file__).parent.parent
+
+
 def _expand_path(p: str) -> Path:
     return Path(os.path.expandvars(os.path.expanduser(p)))
 
@@ -131,8 +135,7 @@ def _ensure_user_env() -> None:
         target = ALIASR_HOME / "config.toml"
         if not target.exists():
             try:
-                with (files("aliasr") / "data" / "config.toml").open("rb") as src:
-                    target.write_bytes(src.read())
+                target.write_bytes((PKG_DIR / "data" / "config.toml").read_bytes())
             except OSError:
                 pass
 
@@ -162,7 +165,7 @@ def _deep_update(base: dict[str, Any], override: dict[str, Any]) -> dict[str, An
 
 
 def _load_defaults() -> dict[str, Any]:
-    with (files("aliasr") / "data" / "config.toml").open("rb") as f:
+    with (PKG_DIR / "data" / "config.toml").open("rb") as f:
         return tomllib.load(f)
 
 
@@ -201,27 +204,27 @@ def _build_config() -> Config:
     cheats_raw = dict(merged["cheats"])
     user_paths = [_expand_path(p) for p in cheats_raw["paths"] if p]
 
-    with as_file(files("aliasr") / "data" / "cheats") as pkg_cheats_path:
-        if cheats_raw["include_defaults"]:
-            if cheats_raw["custom_first"]:
-                base: list[Path] = [*user_paths, pkg_cheats_path]
-            else:
-                base = [pkg_cheats_path, *user_paths]
+    pkg_cheats_path = PKG_DIR / "data" / "cheats"
+    if cheats_raw["include_defaults"]:
+        if cheats_raw["custom_first"]:
+            base: list[Path] = [*user_paths, pkg_cheats_path]
         else:
-            base = [*user_paths]
+            base = [pkg_cheats_path, *user_paths]
+    else:
+        base = [*user_paths]
 
-        seen = set()
-        cheats_paths = [
-            p for p in base if (str_p := str(p)) not in seen and not seen.add(str_p)
-        ]
+    seen = set()
+    cheats_paths = [
+        p for p in base if (str_p := str(p)) not in seen and not seen.add(str_p)
+    ]
 
-        cheats_conf = CheatsConf(
-            paths=tuple(cheats_paths),
-            exclude=tuple(cheats_raw["exclude"]),
-            include_defaults=bool(cheats_raw["include_defaults"]),
-            custom_first=bool(cheats_raw["custom_first"]),
-            default_grouping=cheats_raw["default_grouping"],
-        )
+    cheats_conf = CheatsConf(
+        paths=tuple(cheats_paths),
+        exclude=tuple(cheats_raw["exclude"]),
+        include_defaults=bool(cheats_raw["include_defaults"]),
+        custom_first=bool(cheats_raw["custom_first"]),
+        default_grouping=cheats_raw["default_grouping"],
+    )
 
     g_conf_raw = dict(merged["globals"])
     defaults_dict = {}
