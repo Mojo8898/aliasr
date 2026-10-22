@@ -196,7 +196,28 @@ def _cache_path() -> Path:
     return root / "cheats_cache.pkl"
 
 
-def _save_cache(cache_path: Path) -> None:
+def _signature(files: list[Path]) -> tuple[tuple[str, int, int], ...]:
+    """Cheap fingerprint of the cheat corpus: path, mtime and size per file.
+
+    Changes to any of these — an edit (mtime/size), an added or a deleted file
+    (the set of entries) — produce a different signature, so a stale cache is
+    rebuilt on the next launch. Cost is one directory walk plus a stat per file,
+    far less than reparsing, and it runs on the background load thread.
+    """
+    sig: list[tuple[str, int, int]] = []
+    for p in files:
+        try:
+            st = p.stat()
+        except OSError:
+            # File vanished between scan and stat; omit it so the next launch
+            # (with a settled tree) rebuilds cleanly.
+            continue
+        sig.append((str(p), st.st_mtime_ns, st.st_size))
+    sig.sort()
+    return tuple(sig)
+
+
+def _save_cache(cache_path: Path, signature: tuple[tuple[str, int, int], ...]) -> None:
     """Save cache with direct object pickling and index-based tags."""
     # Build index mapping for tag storage
     cheat_to_idx = {id(ch): i for i, ch in enumerate(_ALL)}
@@ -208,6 +229,7 @@ def _save_cache(cache_path: Path) -> None:
             tag_to_indices[tag] = [cheat_to_idx[id(ch)] for ch in cheats]
 
     payload = {
+        "signature": signature,  # Corpus fingerprint for staleness detection
         "all": _ALL,  # Pickle Cheat objects directly - NO asdict()
         "tags": _TAGS,
         "tag_to_indices": tag_to_indices,  # Store indices, not objects
@@ -226,32 +248,46 @@ def _save_cache(cache_path: Path) -> None:
 
 
 def load_cheats() -> None:
-    """Just load cache, don't verify."""
+    """Load cheats from cache when it matches the source files, else rebuild.
+
+    The cache is reused only if its stored signature matches the current corpus
+    (see ``_signature``); otherwise the markdown is reparsed and the cache is
+    refreshed. This keeps edits/additions/deletions from being masked by a stale
+    pickle while leaving the common (unchanged) path a cheap scan-and-unpickle.
+    """
     global _ALL, _TAGS, _TAG_TO, _REFS_BY_FILE, _DEFAULTS_BY_FILE
 
     cp = _cache_path()
-    if cp.exists():
-        with cp.open("rb") as f:
-            blob = pickle.load(f)
-
-        # Direct assignment - no conversion needed
-        _ALL = blob["all"]
-        _TAGS = blob["tags"]
-        _REFS_BY_FILE = blob["refs_by_file"]
-        _DEFAULTS_BY_FILE = blob["defaults_by_file"]
-
-        # Rebuild _TAG_TO from indices
-        tag_to_indices = blob.get("tag_to_indices", {})
-        _TAG_TO = {}
-        for tag, indices in tag_to_indices.items():
-            _TAG_TO[tag] = [_ALL[i] for i in indices]
-        _TAG_TO["all"] = _ALL
-        return
-
-    # Only build if no cache exists
     files = _scan_md_files()
+    sig = _signature(files)
+
+    if cp.exists():
+        blob = None
+        try:
+            with cp.open("rb") as f:
+                blob = pickle.load(f)
+        except (OSError, pickle.UnpicklingError, EOFError, AttributeError):
+            # Unreadable/corrupt/old-format cache: fall through to a rebuild.
+            blob = None
+
+        if blob is not None and blob.get("signature") == sig:
+            # Direct assignment - no conversion needed
+            _ALL = blob["all"]
+            _TAGS = blob["tags"]
+            _REFS_BY_FILE = blob["refs_by_file"]
+            _DEFAULTS_BY_FILE = blob["defaults_by_file"]
+
+            # Rebuild _TAG_TO from indices
+            tag_to_indices = blob.get("tag_to_indices", {})
+            _TAG_TO = {}
+            for tag, indices in tag_to_indices.items():
+                _TAG_TO[tag] = [_ALL[i] for i in indices]
+            _TAG_TO["all"] = _ALL
+            return
+
+    # No cache, stale cache, or unreadable cache: rebuild and refresh.
     _build_from_files(files)
-    _save_cache(cp)
+    _save_cache(cp, sig)
 
 
 def clear_cache() -> None:
