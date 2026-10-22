@@ -15,6 +15,10 @@ _SEP_RE = re.compile(r"[-.\s]+")
 _SAFE_RE = re.compile(r"[^a-z0-9_]")
 _MULTI_RE = re.compile(r"_+")
 
+# Globals whose values carry significant whitespace (e.g. a command prefix like
+# "proxychains -q ") and so must not be stripped on load/save. See issue #1.
+_PRESERVE_WS_KEYS = {"aliasr_prefix"}
+
 _STATE_RAW: dict[str, list[str]] = {}
 _LOADED = False
 _LAST_SERIALIZED: str | None = None
@@ -25,14 +29,14 @@ _globals_bootstrapped = False
 # ---------- Helpers ----------
 
 
-def _as_list(value: Any, *, max_len: int | None = None) -> list[str]:
+def _as_list(value: Any, *, max_len: int | None = None, preserve_ws: bool = False) -> list[str]:
     """Convert any value to a normalized list of strings with deduplication."""
     if max_len is None:
         max_len = _MAX_LEN
     items = (
-        [str(v).strip() for v in value]
+        [(str(v) if preserve_ws else str(v).strip()) for v in value]
         if isinstance(value, list)
-        else [str(value).strip()]
+        else [(str(value) if preserve_ws else str(value).strip())]
         if value is not None
         else []
     )
@@ -68,13 +72,13 @@ def _canonicalize(state: dict[str, Any]) -> dict[str, list[str]]:
         if not nk:
             continue
         seq = v if isinstance(v, list) else [v]
-        canon[nk] = _normalize_history_list(seq)
+        canon[nk] = _normalize_history_list(seq, preserve_ws=nk in _PRESERVE_WS_KEYS)
     return canon
 
 
-def _normalize_history_list(values: list[str]) -> list[str]:
+def _normalize_history_list(values: list[str], preserve_ws: bool = False) -> list[str]:
     """Normalize a history list: deduplicate, preserve empty leader, enforce max length."""
-    items = [((v or "").strip()) for v in values]
+    items = [(v or "") if preserve_ws else (v or "").strip() for v in values]
     first_empty = bool(items and items[0] == "")
     out, seen = ([""] if first_empty else []), set()
     it = items[1:] if first_empty else items
@@ -113,11 +117,13 @@ def _persist_from_cache() -> None:
 
 def _sync_env_to_global(env_name: str, global_name: str) -> None:
     """Sync an environment variable to a global if it differs from current value."""
-    env_val = (os.environ.get(env_name) or "").strip()
+    preserve = global_name in _PRESERVE_WS_KEYS
+    raw = os.environ.get(env_name) or ""
+    env_val = raw if preserve else raw.strip()
     if env_val:
         cur = _STATE_RAW.get(global_name, [])
         if (cur[0] if cur else "") != env_val:
-            _STATE_RAW[global_name] = _as_list([env_val, *cur])
+            _STATE_RAW[global_name] = _as_list([env_val, *cur], preserve_ws=preserve)
             if not _STATE_RAW[global_name]:
                 _STATE_RAW[global_name] = [""]
             _persist_from_cache()
@@ -214,7 +220,7 @@ def save_global(key: str, value: str) -> None:
         return
     existing = _STATE_RAW.get(nk, [])
     seq = [value, *[x for x in existing if x != value]]
-    _STATE_RAW[nk] = _normalize_history_list(seq)
+    _STATE_RAW[nk] = _normalize_history_list(seq, preserve_ws=nk in _PRESERVE_WS_KEYS)
     _persist_from_cache()
 
 
@@ -226,7 +232,7 @@ def save_globals(payload: dict[str, Any]) -> None:
         if not nk:
             continue
         seq = v if isinstance(v, list) else [v]
-        _STATE_RAW[nk] = _normalize_history_list(seq)
+        _STATE_RAW[nk] = _normalize_history_list(seq, preserve_ws=nk in _PRESERVE_WS_KEYS)
     _persist_from_cache()
 
 
