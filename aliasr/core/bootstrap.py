@@ -71,7 +71,7 @@ def launch_app(execute: bool, pane: str | None, previous: bool):
     return app
 
 
-def clear_flags(cache: bool, globals: bool, creds: bool) -> bool:
+def clear_flags(cache: bool, globals: bool, creds: bool, hosts: bool = False) -> bool:
     """Clear selected stores."""
     tasks: list[tuple[str, callable]] = []
 
@@ -89,6 +89,11 @@ def clear_flags(cache: bool, globals: bool, creds: bool) -> bool:
         from aliasr.core.creds import clear_creds
 
         tasks.append(("Credentials cleared successfully!", clear_creds))
+
+    if hosts:
+        from aliasr.core.hosts import clear_hosts
+
+        tasks.append(("Hosts cleared successfully!", clear_hosts))
 
     if not tasks:
         return False

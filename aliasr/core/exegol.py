@@ -11,8 +11,13 @@ takes effect the next time a shell sources the file -- a new shell, or the
 """
 import re
 from pathlib import Path
+from threading import Lock
 
 from aliasr.core.config import CREDS_PROFILE
+
+# Serializes profile.sh read-modify-write, so concurrent updates (e.g. the
+# parallel credential + host clears in `clear all`) don't clobber each other.
+_PROFILE_LOCK = Lock()
 
 # Order matches exegol_history.cli.utils.CREDS_VARIABLES / HOSTS_VARIABLES.
 _CRED_VARS = ("USER", "PASSWORD", "NT_HASH", "DOMAIN")
@@ -48,24 +53,25 @@ def _write_vars(mapping: dict[str, str], path: Path | None) -> None:
     path = path or CREDS_PROFILE
     if not path:
         return
-    try:
-        p = Path(path)
-        if p.exists():
-            lines = p.read_text(encoding="utf-8").splitlines(keepends=True)
-        else:
-            p.parent.mkdir(parents=True, exist_ok=True)
-            lines = [f"#export {v}=''\n" for v in _TEMPLATE_VARS]
-        for i, line in enumerate(lines):
-            m = _UPDATE_RE.search(line)
-            if not m:
-                continue
-            name = m.group(1)
-            if name in mapping:
-                value = mapping[name]
-                lines[i] = f"export {name}='{value}'\n" if value else f"unset {name}\n"
-        p.write_text("".join(lines), encoding="utf-8")
-    except OSError:
-        pass
+    with _PROFILE_LOCK:
+        try:
+            p = Path(path)
+            if p.exists():
+                lines = p.read_text(encoding="utf-8").splitlines(keepends=True)
+            else:
+                p.parent.mkdir(parents=True, exist_ok=True)
+                lines = [f"#export {v}=''\n" for v in _TEMPLATE_VARS]
+            for i, line in enumerate(lines):
+                m = _UPDATE_RE.search(line)
+                if not m:
+                    continue
+                name = m.group(1)
+                if name in mapping:
+                    value = mapping[name]
+                    lines[i] = f"export {name}='{value}'\n" if value else f"unset {name}\n"
+            p.write_text("".join(lines), encoding="utf-8")
+        except OSError:
+            pass
 
 
 # ---------- Credentials ----------
@@ -97,6 +103,11 @@ def set_current_credential(cred, path: Path | None = None) -> None:
         },
         path,
     )
+
+
+def clear_current_credential(path: Path | None = None) -> None:
+    """Unset the credential variables in profile.sh (mirrors exegol's `unset creds`)."""
+    _write_vars({v: "" for v in _CRED_VARS}, path)
 
 
 # ---------- Hosts ----------
@@ -143,3 +154,8 @@ def set_current_host(
         mapping["DC_HOST"] = dc_fqdn
     if mapping:
         _write_vars(mapping, path)
+
+
+def clear_current_host(path: Path | None = None) -> None:
+    """Unset the host variables in profile.sh (mirrors exegol's `unset hosts`)."""
+    _write_vars({v: "" for v in _HOST_VARS}, path)

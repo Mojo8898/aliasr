@@ -92,6 +92,7 @@ def _parser() -> argparse.ArgumentParser:
     )
     clear_sub.add_parser("globals", help="Clear globals")
     clear_sub.add_parser("creds", help="Clear credentials")
+    clear_sub.add_parser("hosts", help="Clear hosts")
     clear_sub.add_parser("all", help="Clear everything")
 
     p.set_defaults(copy=False, outfile=None, pane=None, previous_pane=False)
@@ -107,7 +108,8 @@ def main() -> int:
         clear_cache = args.clear_cmd in ("cache", "all")
         clear_globals = args.clear_cmd in ("globals", "all")
         clear_creds = args.clear_cmd in ("creds", "all")
-        clear_flags(clear_cache, clear_globals, clear_creds)
+        clear_hosts = args.clear_cmd in ("hosts", "all")
+        clear_flags(clear_cache, clear_globals, clear_creds, clear_hosts)
         return 0
 
     if args.cmd == "audit":

@@ -32,3 +32,12 @@ def load_hosts() -> list[Host]:
 def save_hosts(hosts: Iterable[Host]) -> None:
     """Upsert hosts into the shared database (never deletes existing rows)."""
     _db.write_hosts(list(hosts))
+
+
+def clear_hosts() -> None:
+    """Clear all hosts from the shared database and unset the current host in
+    exegol-history's profile.sh, so nothing lingers to autofill from."""
+    _db.clear_hosts()
+    from aliasr.core.exegol import clear_current_host
+
+    clear_current_host()

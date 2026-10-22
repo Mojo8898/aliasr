@@ -40,7 +40,7 @@ same live refresh for aliasr, wrap its launch the same way, e.g. in your shell
 rc:
 
 ```zsh
-function aliasr { command aliasr "$@" && exec zsh }
+function a { aliasr "$@" && exec zsh }
 ```
 
 This is optional — the current-credential default works regardless, because

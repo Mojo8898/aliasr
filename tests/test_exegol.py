@@ -71,3 +71,16 @@ async def test_build_screen_defaults_to_current_cred(app):
         build = app.screen
         assert build._values.get("user") == "neo"
         assert build._values.get("password") == "trinity"
+
+
+def test_clear_creds_also_unsets_profile_credential():
+    """`clear creds` must unset the profile.sh credential, not just the DB row,
+    so it stops autofilling after a clear."""
+    from aliasr.core import exegol
+    from aliasr.core.creds import Credential, clear_creds
+
+    exegol.set_current_credential(Credential("admin", "p", "", "corp.local"))
+    assert exegol.current_credential() is not None
+
+    clear_creds()
+    assert exegol.current_credential() is None

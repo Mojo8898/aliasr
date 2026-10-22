@@ -202,6 +202,13 @@ class _ExhDB:
                 )
                 conn.commit()
 
+    def clear_hosts(self) -> None:
+        """Delete all hosts (leaves the credentials table intact)."""
+        with self._lock:
+            with self._connect() as conn:
+                conn.execute("DELETE FROM hosts")
+                conn.commit()
+
 
 # ---------- Helpers ----------
 
@@ -300,7 +307,11 @@ def save_creds(creds: Iterable[Credential]) -> None:
 
 
 def clear_creds() -> None:
-    """Clear all credentials from storage."""
+    """Clear all credentials from storage and unset the current credential in
+    exegol-history's profile.sh, so nothing lingers to autofill from."""
     global _MEMO
     _MEMO = []
     _db.clear()
+    from aliasr.core.exegol import clear_current_credential
+
+    clear_current_credential()

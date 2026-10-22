@@ -15,7 +15,7 @@ Some of the largest improvements Aliasr implements include:
 - [x] Significantly expanded tmux integration.
 - [x] Cheat variations that allow for different authentication methods to be built into a single parameter.
 - [x] Automatic parameter population based on history and other sources.
-- [x] Exegol-history (SQLite) integration for managing credentials, shared with Exegol.
+- [x] Exegol-history (SQLite) integration for parameter management.
 
 ## Install
 

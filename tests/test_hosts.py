@@ -81,3 +81,40 @@ async def test_build_screen_defaults_host_from_current(app):
         build = app.screen
         assert build._values.get("ip") == "10.10.10.10"
         assert build._values.get("fqdn") == "victim.corp.local"
+
+
+def test_clear_hosts_wipes_table_and_unsets_profile():
+    """`clear hosts` must empty the hosts table and unset the profile host vars,
+    so nothing lingers to autofill."""
+    from aliasr.core import exegol
+    from aliasr.core.hosts import Host, clear_hosts, save_hosts
+
+    save_hosts([Host("10.0.0.9", "web01", ""), Host("10.0.0.1", "dc01", "DC")])
+    exegol.set_current_host(ip="10.0.0.9", fqdn="web01", dc_ip="10.0.0.1", dc_fqdn="dc01")
+    assert load_hosts() and exegol.current_host()
+
+    clear_hosts()
+    assert load_hosts() == []
+    assert exegol.current_host() == {}
+
+
+def test_clear_hosts_leaves_credentials():
+    from aliasr.core.creds import Credential, load_creds, save_creds
+    from aliasr.core.hosts import Host, clear_hosts, save_hosts
+    import time
+
+    save_creds([Credential("admin", "p", "", "corp.local")])
+    time.sleep(0.3)
+    save_hosts([Host("10.0.0.5", "box", "")])
+    clear_hosts()
+    assert any(c.username == "admin" for c in load_creds())
+
+
+def test_clear_flags_all_includes_hosts():
+    """`clear all` wires hosts in alongside creds/globals/cache."""
+    from aliasr.core.bootstrap import clear_flags
+    from aliasr.core.hosts import Host, load_hosts, save_hosts
+
+    save_hosts([Host("10.9.9.9", "late", "")])
+    clear_flags(cache=False, globals=False, creds=True, hosts=True)
+    assert load_hosts() == []
