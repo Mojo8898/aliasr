@@ -5,7 +5,7 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Vertical
 from textual.screen import ModalScreen
-from textual.widgets import DirectoryTree, Footer, Input, Static, Tree
+from textual.widgets import DirectoryTree, Input, Static, Tree
 from textual.widgets._tree import TreeNode
 
 from aliasr.core.config import kb_root

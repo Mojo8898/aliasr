@@ -480,17 +480,14 @@ class MainScreen(Screen[None]):
 
     def refresh_matches(self) -> None:
         from textual.widgets import Select
+        from aliasr.tui.utils.common import select_value
 
         query = self.query_one("#search", Input).value or ""
 
-        # Get filter values from Select widgets
+        # Get filter values from Select widgets ('' when nothing is selected)
         sb = self.query_one("#search-bar", MainSearch)
-        target_value = sb.query_one("#target-select", Select).value
-        os_value = sb.query_one("#os-select", Select).value
-
-        # Handle Select.BLANK properly
-        target_filter = "" if (target_value is Select.BLANK or target_value is None) else str(target_value)
-        os_filter = "" if (os_value is Select.BLANK or os_value is None) else str(os_value)
+        target_filter = select_value(sb.query_one("#target-select", Select).value)
+        os_filter = select_value(sb.query_one("#os-select", Select).value)
 
         # Start with current tag's cheats or all cheats
         pool = self.tag_to_cheats.get(self.current_tag, [])

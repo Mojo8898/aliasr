@@ -95,20 +95,16 @@ class CheatTags(Tabs):
         tag_type_filter: str = "",
     ) -> None:
         """Apply all filters to tabs"""
-        # Handle Select.BLANK values
-        from textual.widgets import Select
+        from aliasr.tui.utils.common import select_value
 
-        if target_filter is Select.BLANK or target_filter is None:
-            target_filter = ""
-        if os_filter is Select.BLANK or os_filter is None:
-            os_filter = ""
-        if tag_type_filter is Select.BLANK or tag_type_filter is None:
-            tag_type_filter = ""
+        target_filter = select_value(target_filter)
+        os_filter = select_value(os_filter)
+        tag_type_filter = select_value(tag_type_filter)
 
-        self._target_filter = str(target_filter).lower()
-        self._os_filter = str(os_filter).lower()
+        self._target_filter = target_filter.lower()
+        self._os_filter = os_filter.lower()
         self._current_tag_query = (tag_query or "").lower()
-        self._tag_type_filter = str(tag_type_filter).lower()
+        self._tag_type_filter = tag_type_filter.lower()
 
         # Get the screen to check which cheats match filters
         scr = self.app.screen
@@ -295,25 +291,12 @@ class MainSearch(Vertical):
     def _get_tag_candidates(self) -> list[str]:
         """Get tag names that match current filters."""
         from textual.widgets import Select
+        from aliasr.tui.utils.common import select_value
 
-        # Get filter values and handle Select.BLANK
-        target_value = self.query_one("#target-select", Select).value
-        os_value = self.query_one("#os-select", Select).value
-        tag_type_value = self.query_one("#tag-type-select", Select).value
-
-        target_filter = (
-            ""
-            if (target_value is Select.BLANK or target_value is None)
-            else str(target_value)
-        )
-        os_filter = (
-            "" if (os_value is Select.BLANK or os_value is None) else str(os_value)
-        )
-        tag_type_filter = (
-            ""
-            if (tag_type_value is Select.BLANK or tag_type_value is None)
-            else str(tag_type_value)
-        )
+        # Get filter values ('' when nothing is selected)
+        target_filter = select_value(self.query_one("#target-select", Select).value)
+        os_filter = select_value(self.query_one("#os-select", Select).value)
+        tag_type_filter = select_value(self.query_one("#tag-type-select", Select).value)
 
         # Get all tags of the selected type
         matching_tags = set()
@@ -356,28 +339,14 @@ class MainSearch(Vertical):
     def _apply_filters(self) -> None:
         """Apply all filters (target, OS, and tag)."""
         from textual.widgets import Select
+        from aliasr.tui.utils.common import select_value
 
         tabs = self.query_one("#tabs", CheatTags)
 
-        # Get filter values, handling Select.BLANK properly
-        target_value = self.query_one("#target-select", Select).value
-        os_value = self.query_one("#os-select", Select).value
-        tag_type_value = self.query_one("#tag-type-select", Select).value
-
-        # Convert Select.BLANK to empty string
-        target_filter = (
-            ""
-            if (target_value is Select.BLANK or target_value is None)
-            else str(target_value)
-        )
-        os_filter = (
-            "" if (os_value is Select.BLANK or os_value is None) else str(os_value)
-        )
-        tag_type_filter = (
-            ""
-            if (tag_type_value is Select.BLANK or tag_type_value is None)
-            else str(tag_type_value)
-        )
+        # Get filter values ('' when nothing is selected)
+        target_filter = select_value(self.query_one("#target-select", Select).value)
+        os_filter = select_value(self.query_one("#os-select", Select).value)
+        tag_type_filter = select_value(self.query_one("#tag-type-select", Select).value)
         tag_filter = self.query_one("#tag-filter", Input).value or ""
 
         # Apply filters to tabs
