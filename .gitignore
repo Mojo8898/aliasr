@@ -1,6 +1,7 @@
-# AI agent
+# AI
 AGENTS.md
 ARCHITECTURE.md
+CLAUDE.md
 backlog/
 
 # Python
@@ -15,3 +16,9 @@ build/
 
 # Environment
 .env
+
+# uv (published package — resolver uses pyproject constraints, not this lock)
+uv.lock
+
+# Claude Code (personal, per-machine)
+.claude/
