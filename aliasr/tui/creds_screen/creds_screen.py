@@ -148,30 +148,6 @@ class CredsScreen(ModalScreen[None]):
     def _is_empty(self, c: Credential) -> bool:
         return not any((c.username.strip(), c.password, c.hash, c.domain))
 
-    def _move_row(self, delta: int) -> None:
-        filter_input = self.query_one("#filter", Input)
-        if filter_input.value.strip():
-            return
-
-        r = self._sel_row()
-        if r is None or len(self._rows) <= 1 or not (0 <= r < len(self._rows)):
-            return
-
-        new_r = (r + delta) % len(self._rows)
-        self._rows[r], self._rows[new_r] = self._rows[new_r], self._rows[r]
-
-        # Refresh list
-        self._populate_option_list(self.query_one("#filter", Input).value)
-
-        # Find the new position in the filtered list
-        for i in range(self._olist.option_count):
-            opt = self._olist.get_option_at_index(i)
-            if opt.id == new_r:
-                self._olist.highlighted = i
-                break
-
-        self._dirty = True
-
     def _copy_selected(self, field: str) -> None:
         r = self._sel_row()
         if r is None or not (0 <= r < len(self._rows)):
@@ -283,12 +259,6 @@ class CredsScreen(ModalScreen[None]):
             self._olist.highlighted = 0
 
         self._dirty = True
-
-    def action_move_row_up(self) -> None:
-        self._move_row(-1)
-
-    def action_move_row_down(self) -> None:
-        self._move_row(1)
 
     def action_cancel(self) -> None:
         self.dismiss(None)

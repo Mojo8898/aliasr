@@ -157,3 +157,23 @@ async def test_param_pick_does_not_reopen_autocomplete(app):
         assert inp.value == "/tmp"
         assert build._values["working_dir"] == "/tmp"
         assert not sc.display, "autocomplete dropdown re-opened after param selection"
+
+
+def test_creds_drops_row_reordering_globals_keeps_it():
+    """Reordering was removed from creds (shared DB has no row order) but remains
+    on the globals grid (ordered lists in globals.json)."""
+    from aliasr.tui.creds_screen.creds_screen import CredsScreen
+    from aliasr.tui.globals_screen.globals_screen import GlobalsScreen
+
+    def actions(screen_cls):
+        return {getattr(b, "action", None) for b in screen_cls.BINDINGS}
+
+    creds_actions = actions(CredsScreen)
+    assert "move_row_up" not in creds_actions
+    assert "move_row_down" not in creds_actions
+    assert not hasattr(CredsScreen, "action_move_row_up")
+    assert not hasattr(CredsScreen, "_move_row")
+
+    globals_actions = actions(GlobalsScreen)
+    assert "move_row_up" in globals_actions
+    assert "move_row_down" in globals_actions

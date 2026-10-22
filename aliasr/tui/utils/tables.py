@@ -28,6 +28,13 @@ TABLE_BINDINGS = [
         "Delete",
         tooltip="Delete the selected row.",
     ),
+]
+
+
+# Row reordering. Only meaningful where row order persists and matters (the
+# globals grid). Credentials live in the shared Exegol-history database, which
+# is ordered by id and has no row-order concept, so the creds screen omits these.
+TABLE_MOVE_BINDINGS = [
     Binding(
         kb_table("move_row_up"),
         "move_row_up",

@@ -14,7 +14,12 @@ from aliasr.core.globals import (
     save_globals,
     save_globals_order,
 )
-from aliasr.tui.utils.tables import global_header, global_option, TABLE_BINDINGS
+from aliasr.tui.utils.tables import (
+    global_header,
+    global_option,
+    TABLE_BINDINGS,
+    TABLE_MOVE_BINDINGS,
+)
 
 
 class GlobalsScreen(ModalScreen[bool | None]):
@@ -30,6 +35,7 @@ class GlobalsScreen(ModalScreen[bool | None]):
         Binding("pagedown", "list_page_down"),
 
         *TABLE_BINDINGS,
+        *TABLE_MOVE_BINDINGS,
         Binding(
             kb_table_copy("col_1"),
             "copy_global",
