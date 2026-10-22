@@ -27,25 +27,25 @@ class CredsScreen(ModalScreen[None]):
         Binding(
             kb_table_copy("col_1"),
             "copy_user",
-            "User",
+            "Copy User",
             tooltip="Copy the selected username.",
         ),
         Binding(
             kb_table_copy("col_2"),
             "copy_password",
-            "Password",
+            "Copy Password",
             tooltip="Copy the selected password.",
         ),
         Binding(
             kb_table_copy("col_3"),
             "copy_hash",
-            "Hash",
+            "Copy Hash",
             tooltip="Copy the selected hash.",
         ),
         Binding(
             kb_table_copy("col_4"),
             "copy_domain",
-            "Domain",
+            "Copy Domain",
             tooltip="Copy the selected domain.",
         ),
     ]

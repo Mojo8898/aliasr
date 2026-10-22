@@ -55,11 +55,12 @@ class CheatList(Static):
         end = min(n, start + rows)
         width = (self.size.width or 80) if self.size else 80
 
+        selected_style = self.app.available_themes.get(self.app.theme).foreground
+
         out = Text()
         for i in range(start, end):
             raw = self._one_line(self._item_text(self.cheats[i]))
-            theme = self.app.available_themes.get(self.app.theme)
-            line = Text(raw, style=theme.foreground if i == self.selected else None)
+            line = Text(raw, style=selected_style if i == self.selected else None)
             line.truncate(width, overflow="ellipsis")
             out.append(line)
             if i < end - 1:

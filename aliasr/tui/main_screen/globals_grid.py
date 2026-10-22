@@ -27,12 +27,6 @@ class GlobalsGrid(Horizontal):
             priority=True,
             tooltip="Open the globals editor menu for the currently focused global.",
         ),
-        Binding(
-            kb_root("tree_screen"),
-            "tree_screen",
-            "Tree",
-            tooltip="Open the tree menu for the currently focused global.",
-        ),
         
         Binding(
             kb_root("cycle_grid_focus"),
@@ -155,23 +149,6 @@ class GlobalsGrid(Horizontal):
         from aliasr.tui.globals_screen.global_editor import GlobalEditor
 
         self.app.push_screen(GlobalEditor(key), _done)
-
-    def action_tree_screen(self) -> None:
-        key = self._focused_key()
-        if not key:
-            return
-
-        def _done(path: str | None) -> None:
-            if path is None:
-                return
-            self._commit_value(key, path)
-            w = self.query_one(f"#{widget_id('g-', key)}", Input)
-            w.focus()
-            w.action_select_all()
-
-        from aliasr.tui.tree_screen import TreeScreen
-
-        self.app.push_screen(TreeScreen(), _done)
 
     def action_focus_search(self) -> None:
         """Switch focus to search input."""

@@ -15,7 +15,7 @@ from textual.widgets import Footer, Input, OptionList, Static
 from textual_autocomplete import DropdownItem, TargetState
 
 from aliasr.core.cheats import get_param_refs
-from aliasr.core.config import BUILD_COLUMNS, GLOBALS_AUTO_KRB, kb_build_screen, kb_root
+from aliasr.core.config import BUILD_COLUMNS, GLOBALS_AUTO_KRB, kb_build_screen
 from aliasr.core.globals import get_history, load_globals, save_global
 from aliasr.tui.utils.grid_nav import GRID_NAV_BINDINGS, grid_nav
 from aliasr.tui.utils.common import widget_id
@@ -58,12 +58,6 @@ class BuildScreen(ModalScreen[str | None]):
             "param_screen",
             "Params",
             tooltip="Open the parameter menu for the currently focused parameter.",
-        ),
-        Binding(
-            kb_root("tree_screen"),
-            "tree_screen",
-            "Tree",
-            tooltip="Open tree menu for the currently focused parameter.",
         ),
     ]
 
@@ -379,17 +373,20 @@ class BuildScreen(ModalScreen[str | None]):
             if val is None:
                 return
 
-            # Handle credential dict return
-            if isinstance(val, dict):
-                # Update all credential fields that exist in our parameters
-                for cred_param in ["user", "password", "nt_hash", "domain"]:
-                    if cred_param in self._params and cred_param in val:
-                        self._values[cred_param] = val[cred_param]
-                        self._reflect_value(cred_param)
-            else:
-                # Regular string value
-                self._values[param] = val
-                self._reflect_value(param)
+            # Suppress Input.Changed while filling inputs: it would re-open their
+            # autocomplete dropdowns. _values and the preview are updated here.
+            with self.prevent(Input.Changed):
+                # Handle credential dict return
+                if isinstance(val, dict):
+                    # Update all credential fields that exist in our parameters
+                    for cred_param in ["user", "password", "nt_hash", "domain"]:
+                        if cred_param in self._params and cred_param in val:
+                            self._values[cred_param] = val[cred_param]
+                            self._reflect_value(cred_param)
+                else:
+                    # Regular string value
+                    self._values[param] = val
+                    self._reflect_value(param)
 
             self._refresh_preview()
 
@@ -403,32 +400,6 @@ class BuildScreen(ModalScreen[str | None]):
 
         from aliasr.tui.build_screen.param_screen import ParamScreen
         self.app.push_screen(ParamScreen(param, refs, hist), _done)
-
-    def action_tree_screen(self) -> None:
-        w = self.focused
-        if not isinstance(w, Input) or not getattr(w, "id", None):
-            return
-        param = self._id_to_name.get(w.id)
-        if not param:
-            return
-
-        def _done(result: str | None) -> None:
-            if result is None:
-                return
-            self._values[param] = result
-            w.value = result
-            self._refresh_preview()
-
-            try:
-                sc = self.query_one(f"#{widget_id('sc-', w.id)}", SmartComplete)
-                sc.action_hide()
-            except Exception:
-                pass
-
-            self.call_after_refresh(lambda: (w.focus(), w.action_select_all()))
-
-        from aliasr.tui.tree_screen import TreeScreen
-        self.app.push_screen(TreeScreen(), _done)
 
     def action_submit(self) -> None:
         if isinstance(self.focused, OptionList):

@@ -38,12 +38,6 @@ class GlobalEditor(ModalScreen[str | None]):
             "Row Down",
             show=GLOBALS_HISTORY,
         ),
-
-        Binding(
-            kb_root("tree_screen"),
-            "tree_screen",
-            "Tree",
-        ),
     ]
 
     def __init__(self, key: str) -> None:
@@ -234,18 +228,6 @@ class GlobalEditor(ModalScreen[str | None]):
             self._swap(self._sel, self._sel + 1)
             self._select(self._sel + 1)
         self._save_now()
-
-    def action_tree_screen(self) -> None:
-        def _done(result: str | None) -> None:
-            if result is None:
-                return
-            inp = self.query_one("#value-input", Input)
-            inp.value = result
-            inp.action_select_all()
-
-        from aliasr.tui.tree_screen import TreeScreen
-
-        self.app.push_screen(TreeScreen(), _done)
 
     def action_save(self) -> None:
         v = self._save_now()

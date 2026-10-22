@@ -363,24 +363,6 @@ CredEditor #grid {
 
 
 /* ============================================
-   TREE SCREEN
-   ============================================ */
-
-TreeScreen #panel {
-    width: 110;
-    max-height: 88vh;
-}
-
-TreeScreen #tree {
-    margin: 1;
-    padding: 1 2;
-    width: 100%;
-    height: auto;
-    border: round $foreground 50%;
-}
-
-
-/* ============================================
    CLASSES
    ============================================ */
 

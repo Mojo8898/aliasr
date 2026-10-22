@@ -5,32 +5,9 @@ from textual.containers import Grid, Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Footer, Input, Static
 
-from aliasr.core.config import kb_root
 from aliasr.core.globals import normalize_key
 from aliasr.tui.utils.grid_nav import GRID_NAV_BINDINGS, grid_nav
 from aliasr.tui.utils.smart_complete import SmartComplete
-
-
-class ValueInput(Input):
-    BINDINGS = [
-        Binding(
-            kb_root("tree_screen"),
-            "open_tree_screen",
-            "Tree",
-            tooltip="Open the tree menu for the currently focused value.",
-        ),
-    ]
-
-    def action_open_tree_screen(self) -> None:
-        def _done(result: str | None) -> None:
-            if result is None:
-                return
-            self.value = result
-            self.action_select_all()
-            self.focus()
-
-        from aliasr.tui.tree_screen import TreeScreen
-        self.app.push_screen(TreeScreen(), _done)
 
 
 class NewGlobal(ModalScreen[tuple[str, str] | None]):
@@ -49,7 +26,7 @@ class NewGlobal(ModalScreen[tuple[str, str] | None]):
             yield Static("New Global", id="title")
             with Grid(id="grid"):
                 yield Input(placeholder="Enter new global key...", id="key")
-                value_input = ValueInput(placeholder="Enter new global value...", id="value")
+                value_input = Input(placeholder="Enter new global value...", id="value")
                 yield value_input
 
             yield SmartComplete(target=value_input, id="value-complete")

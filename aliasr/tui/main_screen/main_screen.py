@@ -40,19 +40,19 @@ class MainScreen(Screen[None]):
         Binding(
             kb_root("cycle_grid_focus"),
             "cycle_grid_focus",
-            "Grid",
+            "Focus Grid",
             tooltip="Switch focus to the globals grid.",
         ),
         Binding(
             kb_root("cycle_filter_focus"),
             "cycle_filter_focus",
-            "Filter",
+            "Focus Filter",
             tooltip="Switch focus between search and filter inputs.",
         ),
         Binding(
             kb_root("cycle_select_focus"),
-            "cycle_select_focus", 
-            "Selects",
+            "cycle_select_focus",
+            "Focus Selects",
             tooltip="Switch focus between search and select dropdowns.",
         ),
 
@@ -97,7 +97,7 @@ class MainScreen(Screen[None]):
         self.title_list = self.query_one("#title-list", CheatTitleList)
         self.command_list = self.query_one("#command-list", CheatCommandList)
         self.globals_panel = self.query_one(GlobalsGrid)
-        self.globals_panel.display = GLOBALS_SHOW_GRID
+        self._set_grid_visible(GLOBALS_SHOW_GRID)
         self.matches = list(getattr(self.app, "cheats", []))
         for c in getattr(self.app, "cheats", []):
             first = (c.cmd.splitlines()[0] if c.cmd else "")[:200]
@@ -123,7 +123,7 @@ class MainScreen(Screen[None]):
             if self.title_list.size.height <= 1:
                 if self.globals_panel.display:
                     self._focus_search_if_focused_globals()
-                    self.globals_panel.display = False
+                    self._set_grid_visible(False)
 
         self.call_after_refresh(_check_initial_size)
 
@@ -224,7 +224,7 @@ class MainScreen(Screen[None]):
             else:
                 await root.mount(new)
             self.globals_panel = new
-            self.globals_panel.display = keep_visible and self.title_list.size.height > 1
+            self._set_grid_visible(keep_visible and self.title_list.size.height > 1)
 
         self.call_next(_replace)
 
@@ -268,6 +268,19 @@ class MainScreen(Screen[None]):
         w = self.focused
         wid = getattr(w, "id", "") if isinstance(w, Input) else ""
         return wid[2:] if wid.startswith("g-") else None
+
+    def _set_grid_visible(self, visible: bool) -> None:
+        if self.globals_panel.display == visible:
+            return  # skip the footer refresh; it costs time on startup
+        self.globals_panel.display = visible
+        self.refresh_bindings()  # re-run check_action so the footer tracks the grid
+
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        # Hide "Focus Grid" from the footer while there is no grid to focus.
+        if action == "cycle_grid_focus":
+            panel = getattr(self, "globals_panel", None)
+            return bool(panel and panel.display)
+        return True
 
     # ---------- Actions ----------
 
@@ -362,7 +375,7 @@ class MainScreen(Screen[None]):
 
     def action_toggle_grid(self) -> None:
         """Toggle globals grid visibility."""
-        self.globals_panel.display = not self.globals_panel.display
+        self._set_grid_visible(not self.globals_panel.display)
 
         def _refresh():
             ev = Resize(self.size, self.size)
@@ -526,11 +539,11 @@ class MainScreen(Screen[None]):
     def on_resize(self, _: Resize) -> None:
         if self.title_list.size.height > 1:
             if not self.globals_panel.display and GLOBALS_SHOW_GRID:
-                self.globals_panel.display = True
+                self._set_grid_visible(True)
         else:
             if self.globals_panel.display:
                 self._focus_search_if_focused_globals()
-                self.globals_panel.display = False
+                self._set_grid_visible(False)
 
     @on(Click, "#title,#command")
     def _focus_search_from_click(self, event: Click) -> None:
