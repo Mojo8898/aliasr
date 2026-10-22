@@ -1,9 +1,21 @@
 """Shared fixtures for the Pilot-driven TUI tests."""
 
-import pytest
+import os
+import tempfile
+from pathlib import Path
 
-from aliasr.app import Aliasr
-from aliasr.core.bootstrap import launch_app
+# Isolate all on-disk state (config, globals, creds DB) into a throwaway dir
+# BEFORE importing aliasr, so tests never touch the developer's real ~/.aliasr
+# or the shared Exegol-history database. config.CONFIG is built at import time,
+# so these env vars must be set first.
+_TEST_HOME = Path(tempfile.mkdtemp(prefix="aliasr-test-"))
+os.environ.setdefault("ALIASR_HOME", str(_TEST_HOME))
+os.environ.setdefault("ALIASR_CREDS_DB", str(_TEST_HOME / "exh.db"))
+
+import pytest  # noqa: E402
+
+from aliasr.app import Aliasr  # noqa: E402
+from aliasr.core.bootstrap import launch_app  # noqa: E402
 
 
 @pytest.fixture

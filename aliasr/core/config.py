@@ -30,8 +30,7 @@ class GlobalsConf:
 
 @dataclass(frozen=True)
 class CredsConf:
-    kdbx: Path
-    key: Path
+    db: Path
     mask: bool
     auto_hash: bool
 
@@ -79,6 +78,55 @@ def _expand_path(p: str) -> Path:
     return Path(os.path.expandvars(os.path.expanduser(p)))
 
 
+def _aliasr_home() -> Path:
+    return _expand_path(os.getenv("ALIASR_HOME") or "~/.aliasr")
+
+
+ALIASR_HOME: Path = _aliasr_home()
+
+
+def _resolve_under_home(value: str) -> Path:
+    """Resolve a config path; bare/relative values live under ALIASR_HOME."""
+    p = _expand_path(value)
+    return p if p.is_absolute() else ALIASR_HOME / p
+
+
+def _resolve_creds_db(value: str) -> Path:
+    """Credentials DB path, with an ALIASR_CREDS_DB env override (tests/CI)."""
+    env = os.getenv("ALIASR_CREDS_DB")
+    return _expand_path(env) if env else _resolve_under_home(value)
+
+
+def _ensure_user_env() -> None:
+    """First-run setup for the ~/.aliasr home: create it, drop an editable copy
+    of the packaged config, and migrate the legacy ~/.aliasr.json globals file."""
+    try:
+        ALIASR_HOME.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        return
+
+    # Materialize an editable copy of the packaged defaults (never clobber).
+    if not os.getenv("ALIASR_CONFIG"):
+        target = ALIASR_HOME / "config.toml"
+        if not target.exists():
+            try:
+                with (files("aliasr") / "data" / "config.toml").open("rb") as src:
+                    target.write_bytes(src.read())
+            except OSError:
+                pass
+
+    # Migrate the pre-reorg globals file. Only for the default home, so a custom
+    # ALIASR_HOME (tests, CI) never moves a real user's ~/.aliasr.json.
+    if not os.getenv("ALIASR_HOME"):
+        new_globals = ALIASR_HOME / "globals.json"
+        legacy = _expand_path("~/.aliasr.json")
+        if not new_globals.exists() and legacy.is_file():
+            try:
+                legacy.replace(new_globals)
+            except OSError:
+                pass
+
+
 def _deep_update(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
     out = dict(base)
     for k, v in override.items():
@@ -110,6 +158,7 @@ def _load_user_toml() -> dict[str, Any]:
     # 2. Standard user locations
     xdg_base = Path(os.getenv("XDG_CONFIG_HOME") or Path.home() / ".config")
     for p in (
+        ALIASR_HOME / "config.toml",
         xdg_base / "aliasr" / "config.toml",
         Path.home() / ".config" / "aliasr" / "config.toml",
     ):
@@ -123,6 +172,7 @@ def _load_user_toml() -> dict[str, Any]:
 
 
 def _build_config() -> Config:
+    _ensure_user_env()
     defaults = _load_defaults()
     user = _load_user_toml()
     merged = _deep_update(defaults, user)
@@ -164,7 +214,7 @@ def _build_config() -> Config:
                 defaults_dict[k] = [str(i) for i in v] if isinstance(v, list) else str(v)
 
     g_conf = GlobalsConf(
-        path=_expand_path(str(g_conf_raw["path"])),
+        path=_resolve_under_home(str(g_conf_raw["path"])),
         history=bool(g_conf_raw["history"]),
         max_len=int(g_conf_raw["max_len"]),
         show_grid=bool(g_conf_raw["show_grid"]),
@@ -174,8 +224,7 @@ def _build_config() -> Config:
 
     cr_raw = dict(merged["creds"])
     cr_conf = CredsConf(
-        kdbx=_expand_path(str(cr_raw["kdbx"])),
-        key=_expand_path(str(cr_raw["key"])),
+        db=_resolve_creds_db(str(cr_raw["db"])),
         mask=bool(cr_raw["mask"]),
         auto_hash=bool(cr_raw["auto_hash"]),
     )
@@ -261,8 +310,7 @@ GLOBALS_MAX_LEN: int = CONFIG.globals.max_len
 GLOBALS_AUTO_KRB: bool = CONFIG.globals.auto_krb
 DEFAULT_GLOBALS: dict[str, str | list[str]] = CONFIG.globals.defaults
 
-CREDS_KDBX: Path = Path(CONFIG.creds.kdbx)
-CREDS_KEY: Path = Path(CONFIG.creds.key)
+CREDS_DB: Path = Path(CONFIG.creds.db)
 CREDS_MASK: bool = CONFIG.creds.mask
 CREDS_AUTO_HASH: bool = CONFIG.creds.auto_hash
 

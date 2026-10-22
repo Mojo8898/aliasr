@@ -1,6 +1,6 @@
 # DEFAULT PACKAGE CONFIGS
 ## REMOVING ANY OF THESE VALUES WILL RAISE ERRORS
-### EDIT ~/.config/aliasr/config.toml INSTEAD AND CHANGES WILL AUTOMATICALLY BE MERGED
+### EDIT ~/.aliasr/config.toml INSTEAD AND CHANGES WILL AUTOMATICALLY BE MERGED
 [cheats]
 paths = ["~/.cheats", "/opt/my-resources/setup/arsenal-cheats"]
 exclude = ["README.md"]
@@ -9,7 +9,7 @@ custom_first = false
 default_grouping = "cat"  # Set to "" for none/all
 
 [globals]
-path = "~/.aliasr.json"
+path = "globals.json"
 history = true
 max_len = 50
 show_grid = true
@@ -30,8 +30,7 @@ krb5ccname = [""]
 aliasr_prefix = [""]
 
 [creds]
-kdbx = "~/.exegol_history/DB.kdbx"
-key = "~/.exegol_history/db.key"
+db = "~/.exegol_history/exh.db"
 mask = false
 auto_hash = true
 

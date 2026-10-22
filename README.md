@@ -15,7 +15,7 @@ Some of the largest improvements Aliasr implements include:
 - [x] Significantly expanded tmux integration.
 - [x] Cheat variations that allow for different authentication methods to be built into a single parameter.
 - [x] Automatic parameter population based on history and other sources.
-- [x] Secure KeePass integration for managing credentials.
+- [x] Exegol-history (SQLite) integration for managing credentials, shared with Exegol.
 
 ## Install
 
@@ -78,7 +78,7 @@ options:
 
 Aliasr allows you to configure pretty much everything. Refer to the built-in `config.toml` found [here](./aliasr/data/config.toml) to see what configurations options are available. A detailed configuration guide can be found in [Configuration](./aliasr/data/wiki/Configuration.md).
 
-Create your own config in `~/.config/aliasr/config.toml` to edit existing configurations and changes will automatically be merged at runtime.
+Edit `~/.aliasr/config.toml` (created automatically on first run) to override any defaults; your changes are merged at runtime.
 
 ## Cheats
 

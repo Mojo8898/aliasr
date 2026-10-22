@@ -133,7 +133,9 @@ class CredsScreen(ModalScreen[None]):
             if res is None:
                 return
             u, p, h, d = res
-            self._rows[row_idx] = Credential(u, p, h, d)
+            # Preserve the backing row id so the save reconciles as an in-place
+            # update rather than a delete + re-insert.
+            self._rows[row_idx] = Credential(u, p, h, d, c.credential_id)
             self._populate_option_list(self.query_one("#filter", Input).value)
             self._dirty = True
 

@@ -1,99 +1,173 @@
-import secrets
+import sqlite3
 from collections.abc import Iterable, Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from threading import RLock, Thread
-from typing import ClassVar
 
-from aliasr.core.config import CREDS_AUTO_HASH, CREDS_KDBX, CREDS_KEY
+from aliasr.core.config import CREDS_AUTO_HASH, CREDS_DB
 
 
 @dataclass(frozen=True, slots=True)
 class Credential:
-    """Credential storage with KeePass integration."""
+    """A single credential row, mirroring Exegol-history's `credentials` table.
 
-    GROUP_NAME: ClassVar[str] = "Credentials"
-    HASH_PROPERTY: ClassVar[str] = "hash"
-    DOMAIN_PROPERTY: ClassVar[str] = "domain"
+    ``credential_id`` is the primary key of the backing row (``None`` for a
+    credential that has not been persisted yet). It is storage metadata, not
+    identity, so it is excluded from equality/hashing — two credentials with the
+    same fields compare equal regardless of id.
+    """
 
     username: str
     password: str
     hash: str
     domain: str
+    credential_id: int | None = field(default=None, compare=False)
 
     def __iter__(self) -> Iterator[str]:
         return iter([self.username, self.password, self.hash, self.domain])
 
 
-class _KeePass:
-    """Thread-safe KeePass database wrapper."""
+# DDL mirrors exactly what Exegol-history's SQLAlchemy models emit (verified
+# against v3.1), so both tools can share the same database (default
+# ~/.exegol_history/exh.db). The single-column INTEGER PRIMARY KEY is a rowid
+# alias, so inserts without an explicit id auto-assign one, matching Exegol.
+# See ThePorgs/Exegol-history db_api/creds.py and db_api/hosts.py.
+_CREDENTIALS_DDL = """
+CREATE TABLE IF NOT EXISTS credentials (
+    credential_id INTEGER NOT NULL,
+    username VARCHAR,
+    password VARCHAR,
+    hash VARCHAR,
+    domain VARCHAR,
+    PRIMARY KEY (credential_id),
+    UNIQUE (username, domain)
+)
+"""
 
-    HOSTS_GROUP_NAME = "Hosts"
+_HOSTS_DDL = """
+CREATE TABLE IF NOT EXISTS hosts (
+    host_id INTEGER NOT NULL,
+    ip VARCHAR,
+    hostname VARCHAR,
+    role VARCHAR,
+    PRIMARY KEY (host_id),
+    UNIQUE (ip, hostname)
+)
+"""
+
+
+class _CredsDB:
+    """Thread-safe wrapper over the shared SQLite credentials store."""
 
     def __init__(self) -> None:
-        self._kp = None
-        self._group = NotImplemented
         self._lock = RLock()
+        self._ready = False
 
-    def _ensure_open(self) -> None:
-        """Open KeePass database if not already open."""
-        if self._kp is not None:
+    def _ensure_db(self) -> None:
+        """Create the database file and Exegol-compatible tables if missing."""
+        if self._ready and CREDS_DB.exists():
             return
-        if not CREDS_KDBX.exists():
-            _ensure_creds()
+        CREDS_DB.parent.mkdir(parents=True, exist_ok=True)
+        with sqlite3.connect(str(CREDS_DB)) as conn:
+            conn.execute(_CREDENTIALS_DDL)
+            conn.execute(_HOSTS_DDL)
+            conn.commit()
+        self._ready = True
 
-        from pykeepass import PyKeePass
-        self._kp = PyKeePass(str(CREDS_KDBX), keyfile=str(CREDS_KEY))
-
-        # Ensure Credentials group exists
-        grp = self._kp.find_groups(name=Credential.GROUP_NAME, first=True)
-        if grp is None:
-            grp = self._kp.add_group(self._kp.root_group, Credential.GROUP_NAME)
-
-        # Ensure Hosts group exists (for exegol-history compatibility)
-        hosts_grp = self._kp.find_groups(name=self.HOSTS_GROUP_NAME, first=True)
-        if hosts_grp is None:
-            self._kp.add_group(self._kp.root_group, self.HOSTS_GROUP_NAME)
-
-        self._group = grp
-        self._kp.save()
+    def _connect(self) -> sqlite3.Connection:
+        self._ensure_db()
+        return sqlite3.connect(str(CREDS_DB))
 
     def read(self) -> list[Credential]:
-        """List all credentials from KeePass."""
+        """Return every credential, oldest first (NULLs surfaced as empty strings)."""
         with self._lock:
-            self._ensure_open()
-            entries = list(self._group.entries or [])
-            return [
-                Credential(
-                    username=e.username or "",
-                    password=e.password or "",
-                    hash=e.get_custom_property(Credential.HASH_PROPERTY) or "",
-                    domain=e.get_custom_property(Credential.DOMAIN_PROPERTY) or "",
-                )
-                for e in entries
-            ]
+            with self._connect() as conn:
+                rows = conn.execute(
+                    "SELECT credential_id, username, password, hash, domain "
+                    "FROM credentials ORDER BY credential_id"
+                ).fetchall()
+        return [
+            Credential(
+                username=r[1] or "",
+                password=r[2] or "",
+                hash=r[3] or "",
+                domain=r[4] or "",
+                credential_id=r[0],
+            )
+            for r in rows
+        ]
 
     def write(self, creds: Iterable[Credential]) -> None:
-        """Write credentials to KeePass (replaces all)."""
+        """Reconcile the credentials table against `creds` incrementally.
+
+        Rows carrying a ``credential_id`` are updated in place (so Exegol keeps
+        seeing stable primary keys); id-less rows are inserted. Any stored row
+        whose id is absent from the incoming set is deleted — an id-tracked
+        delete — while the hosts table is never touched. New inserts merge into an
+        existing row on the (username, domain) constraint Exegol enforces.
+        """
+        rows = list(creds)
+        keep_ids = [c.credential_id for c in rows if c.credential_id is not None]
         with self._lock:
-            self._ensure_open()
-            for e in list(self._group.entries or []):
-                self._kp.delete_entry(e)
+            with self._connect() as conn:
+                if keep_ids:
+                    placeholders = ",".join("?" * len(keep_ids))
+                    conn.execute(
+                        "DELETE FROM credentials "
+                        f"WHERE credential_id NOT IN ({placeholders})",
+                        keep_ids,
+                    )
+                else:
+                    conn.execute("DELETE FROM credentials")
+                for c in rows:
+                    self._upsert(conn, c)
+                conn.commit()
 
-            cid = 1
-            written: list[Credential] = []
-            for c in creds:
-                title = str(cid)
-                cid += 1
-                e = self._kp.add_entry(
-                    self._group, title, c.username or "", c.password or ""
+    def _upsert(self, conn: sqlite3.Connection, c: Credential) -> None:
+        """Update the row with c's id, else insert (merging on username/domain)."""
+        values = (
+            c.username or None,
+            c.password or None,
+            c.hash or None,
+            c.domain or None,
+        )
+        if c.credential_id is not None:
+            try:
+                cur = conn.execute(
+                    "UPDATE credentials SET username=?, password=?, hash=?, domain=? "
+                    "WHERE credential_id=?",
+                    (*values, c.credential_id),
                 )
-                e.set_custom_property(Credential.HASH_PROPERTY, c.hash, protect=True)
-                e.set_custom_property(
-                    Credential.DOMAIN_PROPERTY, c.domain, protect=True
+                if cur.rowcount:
+                    return
+            except sqlite3.IntegrityError:
+                # Edited into a collision on (username, domain): last-write-wins —
+                # drop the row it now duplicates, then apply the edit.
+                conn.execute(
+                    "DELETE FROM credentials "
+                    "WHERE username IS ? AND domain IS ? AND credential_id != ?",
+                    (values[0], values[3], c.credential_id),
                 )
-                written.append(c)
+                conn.execute(
+                    "UPDATE credentials SET username=?, password=?, hash=?, domain=? "
+                    "WHERE credential_id=?",
+                    (*values, c.credential_id),
+                )
+                return
+        # New row (or a stale id that no longer exists): insert, merging on conflict.
+        conn.execute(
+            "INSERT INTO credentials (username, password, hash, domain) "
+            "VALUES (?, ?, ?, ?) "
+            "ON CONFLICT(username, domain) DO UPDATE SET "
+            "password=excluded.password, hash=excluded.hash",
+            values,
+        )
 
-            self._kp.save()
+    def clear(self) -> None:
+        """Delete all credentials (leaves the hosts table intact)."""
+        with self._lock:
+            with self._connect() as conn:
+                conn.execute("DELETE FROM credentials")
+                conn.commit()
 
 
 # ---------- Helpers ----------
@@ -112,6 +186,7 @@ def _materialize_hash(c: Credential) -> Credential:
         password=c.password,
         hash=nt_hash(c.password),
         domain=c.domain,
+        credential_id=c.credential_id,
     )
 
 
@@ -134,12 +209,13 @@ def _deduplicate_creds(creds: Iterable[Credential], materialize: bool = False) -
                 not (existing.hash and c.hash and existing.hash != c.hash) and
                 not (existing.domain and c.domain and existing.domain != c.domain)):
 
-                # Merge c into existing
+                # Merge c into existing (keep whichever id is already persisted)
                 result[i] = Credential(
                     username=existing.username or c.username,
                     password=existing.password or c.password,
                     hash=existing.hash or c.hash,
                     domain=existing.domain or c.domain,
+                    credential_id=existing.credential_id or c.credential_id,
                 )
                 merged = True
                 break
@@ -149,22 +225,6 @@ def _deduplicate_creds(creds: Iterable[Credential], materialize: bool = False) -
             result.append(c)
 
     return result
-
-
-def _ensure_creds() -> None:
-    """Ensure credential storage exists (KeePass DB and key file)."""
-    CREDS_KDBX.parent.mkdir(parents=True, exist_ok=True)
-    CREDS_KEY.parent.mkdir(parents=True, exist_ok=True)
-
-    if not CREDS_KEY.exists():
-        CREDS_KEY.write_bytes(secrets.token_bytes(256))
-
-    if not CREDS_KDBX.exists() or CREDS_KDBX.stat().st_size < 1024:
-        from pykeepass import create_database
-        try:
-            create_database(str(CREDS_KDBX), keyfile=str(CREDS_KEY))
-        except FileNotFoundError:
-            pass
 
 
 # ---------- Public API ----------
@@ -183,36 +243,31 @@ def nt_hash(password: str) -> str:
 
 
 _MEMO: list[Credential] | None = None
-_LOADED = False
-_kp = _KeePass()
+_db = _CredsDB()
 
 
 def load_creds() -> list[Credential]:
-    """Load credentials with multi-tier caching and deduplication."""
-    global _MEMO, _LOADED
+    """Load credentials with memoization and deduplication."""
+    global _MEMO
     if _MEMO is not None:
         return list(_MEMO)
 
-    if not _LOADED:
-        _ensure_creds()
-        _LOADED = True
-
-    rows = _kp.read()
+    rows = _db.read()
     _MEMO = _deduplicate_creds(rows, materialize=False)
     return list(_MEMO)
 
 
 def save_creds(creds: Iterable[Credential]) -> None:
-    """Save credentials to all storage layers, removing duplicates."""
+    """Save credentials to storage, removing duplicates."""
     global _MEMO
 
     unique_creds = _deduplicate_creds(creds, materialize=True)
     _MEMO = list(unique_creds)
-    Thread(target=_kp.write, args=(unique_creds,), daemon=False).start()
+    Thread(target=_db.write, args=(unique_creds,), daemon=False).start()
 
 
 def clear_creds() -> None:
-    """Clear all credentials from all storage layers."""
+    """Clear all credentials from storage."""
     global _MEMO
     _MEMO = []
-    _kp.write([])
+    _db.clear()

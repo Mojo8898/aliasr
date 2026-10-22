@@ -21,8 +21,8 @@ from aliasr.core.config import (
     CHEAT_PATHS,
     CHEATS_EXCLUDE,
     CHEATS_DEFAULT_GROUPING,
-    CREDS_KDBX,
-    CREDS_KEY,
+    ALIASR_HOME,
+    CREDS_DB,
     CREDS_MASK,
     DEFAULT_GLOBALS,
     GLOBALS_COLUMNS,
@@ -533,8 +533,9 @@ def audit_config() -> int:
 
     # Build candidate list to match config.py precedence:
     # 1) ALIASR_CONFIG (if set; file or dir -> config.toml)
-    # 2) XDG_CONFIG_HOME/aliasr/config.toml (if set)
-    # 3) ~/.config/aliasr/config.toml
+    # 2) ALIASR_HOME/config.toml (default ~/.aliasr)
+    # 3) XDG_CONFIG_HOME/aliasr/config.toml (if set)
+    # 4) ~/.config/aliasr/config.toml
     candidates: list[Path] = []
     env_raw = os.getenv("ALIASR_CONFIG")
     env_resolved: Path | None = None
@@ -543,6 +544,9 @@ def audit_config() -> int:
         p = Path(os.path.expandvars(os.path.expanduser(env_raw)))
         env_resolved = (p / "config.toml") if p.is_dir() else p
         candidates.append(env_resolved)
+
+    # ALIASR_HOME (default ~/.aliasr) is the primary standard location
+    candidates.append(ALIASR_HOME / "config.toml")
 
     xdg = os.environ.get("XDG_CONFIG_HOME")
     if xdg:
@@ -658,8 +662,7 @@ def audit_config() -> int:
     console.print(_panel("CREDENTIALS CONFIGURATION"))
     console.print()
 
-    console.print(f"  {'[green]✓[/]' if CREDS_KDBX.exists() else '[dim]○[/]'} KeePass DB: {CREDS_KDBX}")
-    console.print(f"  {'[green]✓[/]' if CREDS_KEY.exists() else '[dim]○[/]'} Key file: {CREDS_KEY}")
+    console.print(f"  {'[green]✓[/]' if CREDS_DB.exists() else '[dim]○[/]'} Credentials DB (Exegol-history): {CREDS_DB}")
     console.print(f"  Mask credentials: [{'green' if CREDS_MASK else 'red'}]{CREDS_MASK}[/]")
 
     # Validate theme
@@ -765,8 +768,7 @@ def _audit_defaults() -> int:
         },
         "Default Globals": DEFAULT_GLOBALS,
         "Credentials": {
-            "KeePass DB": str(CREDS_KDBX),
-            "Key File": str(CREDS_KEY),
+            "Database": str(CREDS_DB),
             "Mask": str(CREDS_MASK),
         },
         "Layout": {

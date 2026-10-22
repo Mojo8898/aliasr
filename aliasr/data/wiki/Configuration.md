@@ -3,11 +3,23 @@
 Aliasr is configured via a single TOML file. Configuration is loaded in this order (highest priority first):
 
 1. `ALIASR_CONFIG` (if set)
-2. `$XDG_CONFIG_HOME/aliasr/config.toml` (if XDG_CONFIG_HOME is set)
-3. `~/.config/aliasr/config.toml`
-4. Built-in defaults shipped with Aliasr
+2. `$ALIASR_HOME/config.toml` (defaults to `~/.aliasr/config.toml`)
+3. `$XDG_CONFIG_HOME/aliasr/config.toml` (if XDG_CONFIG_HOME is set)
+4. `~/.config/aliasr/config.toml`
+5. Built-in defaults shipped with Aliasr
 
 If multiple locations exist, the first one found wins.
+
+On first run Aliasr creates `~/.aliasr/` and drops an editable copy of the
+default `config.toml` there; your edits are merged over the built-in defaults at
+runtime. Globals live beside it at `~/.aliasr/globals.json` (a pre-existing
+`~/.aliasr.json` is migrated automatically). Set `ALIASR_HOME` to relocate the
+whole folder.
+
+Credentials are stored in an [Exegol-history](https://github.com/ThePorgs/Exegol-history)
+SQLite database (default `~/.exegol_history/exh.db`), so creds are shared with
+Exegol. Point `[creds].db` elsewhere, or override it with `ALIASR_CREDS_DB`, to
+use a different file.
 
 ## Projects
 
@@ -28,8 +40,7 @@ Example layout:
 │   ├── .envrc                   # direnv config
 │   ├── .aliasr.toml             # local aliasr config
 │   ├── .aliasr-globals.json     # project-specific globals
-│   ├── .credentials.kdbx        # project-specific creds
-│   ├── .credentials.key
+│   ├── .credentials.db          # project-specific creds (SQLite)
 │   ├── exploits/
 │   ├── loot/
 │   └── scans/
@@ -53,8 +64,7 @@ Example `.aliasr.toml`:
 path = "${ALIASR_MACHINE_DIR}/.aliasr-globals.json"
 
 [creds]
-kdbx = "${ALIASR_MACHINE_DIR}/.credentials.kdbx"
-key  = "${ALIASR_MACHINE_DIR}/.credentials.key"
+db = "${ALIASR_MACHINE_DIR}/.credentials.db"
 
 [globals.defaults]
 ip       = ["10.10.11.123"]
@@ -84,6 +94,5 @@ You should see for example if your project was created in `/root/projects/projec
   ...
   ✓ Globals file: /root/projects/project-1/.aliasr-globals.json
   ...
-  ✓ KeePass DB: /root/projects/project-1/.credentials.kdbx
-  ✓ Key file: /root/projects/project-1/.credentials.key
+  ✓ Credentials DB (Exegol-history): /root/projects/project-1/.credentials.db
 ```
