@@ -23,6 +23,7 @@ from aliasr.core.config import (
     CHEATS_DEFAULT_GROUPING,
     ALIASR_HOME,
     CREDS_DB,
+    CREDS_PROFILE,
     CREDS_MASK,
     DEFAULT_GLOBALS,
     GLOBALS_COLUMNS,
@@ -663,6 +664,9 @@ def audit_config() -> int:
     console.print()
 
     console.print(f"  {'[green]✓[/]' if CREDS_DB.exists() else '[dim]○[/]'} Credentials DB (Exegol-history): {CREDS_DB}")
+    if CREDS_PROFILE:
+        exists = CREDS_PROFILE.exists()
+        console.print(f"  {'[green]✓[/]' if exists else '[dim]○[/]'} Exegol profile.sh: {CREDS_PROFILE}")
     console.print(f"  Mask credentials: [{'green' if CREDS_MASK else 'red'}]{CREDS_MASK}[/]")
 
     # Validate theme
@@ -769,6 +773,7 @@ def _audit_defaults() -> int:
         "Default Globals": DEFAULT_GLOBALS,
         "Credentials": {
             "Database": str(CREDS_DB),
+            "Profile": str(CREDS_PROFILE),
             "Mask": str(CREDS_MASK),
         },
         "Layout": {

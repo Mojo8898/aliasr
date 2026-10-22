@@ -21,6 +21,32 @@ SQLite database (default `~/.exegol_history/exh.db`), so creds are shared with
 Exegol. Point `[creds].db` elsewhere, or override it with `ALIASR_CREDS_DB`, to
 use a different file.
 
+## Current credential (Exegol-history profile.sh)
+
+Building a command records the credential you used as Exegol-history's *current
+credential* — the `USER`/`PASSWORD`/`NT_HASH`/`DOMAIN` exports in its
+`profile.sh` buffer. On the next build aliasr defaults the credential fields to
+whatever is currently set there, so the cred follows you across runs and is
+shared both ways with Exegol (set one in `exegol-history` and aliasr picks it
+up, and vice versa). The profile path is auto-detected from
+`~/.exegol_history/config.toml`; override it with `[creds].profile` or the
+`ALIASR_PROFILE` env var.
+
+Writing `profile.sh` cannot change the environment of the shell that is already
+running aliasr — a process can't mutate its parent's env. It takes effect the
+next time a shell sources the profile: a new shell, or an `exec zsh`. Exegol's
+own `exh` wrapper does this with `exegol-history "$@" && exec zsh`; to get the
+same live refresh for aliasr, wrap its launch the same way, e.g. in your shell
+rc:
+
+```zsh
+function aliasr { command aliasr "$@" && exec zsh }
+```
+
+This is optional — the current-credential default works regardless, because
+aliasr reads it from the `profile.sh` file (a single shared location), not from
+the environment of whichever pane or shell launched it.
+
 ## Projects
 
 Aliasr supports project-specific configs with the tool `direnv`.

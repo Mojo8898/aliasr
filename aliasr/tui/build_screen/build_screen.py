@@ -105,10 +105,13 @@ class BuildScreen(ModalScreen[str | None]):
 
         if has_cred_params:
             from aliasr.core.creds import load_creds
+            from aliasr.core.exegol import current_credential
             creds = load_creds()
 
-            if creds:
-                most_recent = creds[0]
+            # Default to the credential exegol-history currently has set (shared
+            # via profile.sh); fall back to the most recent stored credential.
+            most_recent = current_credential() or (creds[0] if creds else None)
+            if most_recent:
                 cred_mapping = {
                     "user": most_recent.username,
                     "password": most_recent.password,
@@ -420,6 +423,12 @@ class BuildScreen(ModalScreen[str | None]):
             existing_creds = load_creds()
             existing_creds.insert(0, new_cred)
             save_creds(existing_creds)
+
+            # Mirror exegol-history: record this credential as the current one in
+            # profile.sh, so it is the build default next time and is exported to
+            # shells that source the profile.
+            from aliasr.core.exegol import set_current_credential
+            set_current_credential(new_cred)
 
         # Save non-cred parameters to globals (including domain)
         if self._params:

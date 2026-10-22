@@ -11,6 +11,7 @@ from pathlib import Path
 _TEST_HOME = Path(tempfile.mkdtemp(prefix="aliasr-test-"))
 os.environ.setdefault("ALIASR_HOME", str(_TEST_HOME))
 os.environ.setdefault("ALIASR_CREDS_DB", str(_TEST_HOME / "exh.db"))
+os.environ.setdefault("ALIASR_PROFILE", str(_TEST_HOME / "profile.sh"))
 
 import pytest  # noqa: E402
 

@@ -31,6 +31,7 @@ class GlobalsConf:
 @dataclass(frozen=True)
 class CredsConf:
     db: Path
+    profile: Path | None
     mask: bool
     auto_hash: bool
 
@@ -95,6 +96,26 @@ def _resolve_creds_db(value: str) -> Path:
     """Credentials DB path, with an ALIASR_CREDS_DB env override (tests/CI)."""
     env = os.getenv("ALIASR_CREDS_DB")
     return _expand_path(env) if env else _resolve_under_home(value)
+
+
+def _resolve_profile(value: str) -> Path:
+    """Exegol-history profile.sh path. Resolution order: ALIASR_PROFILE env, an
+    explicit [creds].profile, exegol's own ~/.exegol_history/config.toml, then
+    exegol's packaged default."""
+    env = os.getenv("ALIASR_PROFILE")
+    if env:
+        return _expand_path(env)
+    if value:
+        return _expand_path(value)
+    exegol_cfg = _expand_path("~/.exegol_history/config.toml")
+    try:
+        with exegol_cfg.open("rb") as f:
+            p = tomllib.load(f).get("paths", {}).get("profile_sh_path")
+        if p:
+            return _expand_path(p)
+    except OSError:
+        pass
+    return Path("/opt/tools/Exegol-history/profile.sh")
 
 
 def _ensure_user_env() -> None:
@@ -225,6 +246,7 @@ def _build_config() -> Config:
     cr_raw = dict(merged["creds"])
     cr_conf = CredsConf(
         db=_resolve_creds_db(str(cr_raw["db"])),
+        profile=_resolve_profile(str(cr_raw.get("profile", "") or "")),
         mask=bool(cr_raw["mask"]),
         auto_hash=bool(cr_raw["auto_hash"]),
     )
@@ -311,6 +333,7 @@ GLOBALS_AUTO_KRB: bool = CONFIG.globals.auto_krb
 DEFAULT_GLOBALS: dict[str, str | list[str]] = CONFIG.globals.defaults
 
 CREDS_DB: Path = Path(CONFIG.creds.db)
+CREDS_PROFILE: Path | None = CONFIG.creds.profile
 CREDS_MASK: bool = CONFIG.creds.mask
 CREDS_AUTO_HASH: bool = CONFIG.creds.auto_hash
 
