@@ -116,7 +116,7 @@ class CredsScreen(ModalScreen[None]):
         if self._dirty["creds"]:
             survivors = self._non_empty("creds")
             save_creds(survivors)
-            self._clear_deleted_current_credential(survivors)
+            self._sync_current_credential(survivors)
             self._dirty["creds"] = False
         if self._dirty["hosts"]:
             survivors = self._non_empty("hosts")
@@ -124,18 +124,30 @@ class CredsScreen(ModalScreen[None]):
             self._clear_deleted_current_host(survivors)
             self._dirty["hosts"] = False
 
-    def _clear_deleted_current_credential(self, survivors: list) -> None:
-        """If the credential set in exegol-history's profile.sh was just deleted
-        here, unset it there too, so a removed cred doesn't linger as the active
-        one (mirroring what a bulk `clear creds` already does)."""
-        from aliasr.core.exegol import clear_current_credential, current_credential
+    def _sync_current_credential(self, survivors: list) -> None:
+        """Keep exegol-history's profile.sh *current* credential in step with
+        edits made here, matching on identity (username, domain):
+
+        * edited in place (password/hash changed) -> rewrite it in profile.sh
+        * deleted (identity gone, and it was shown here) -> unset it there,
+          mirroring what a bulk `clear creds` already does
+        """
+        from aliasr.core.exegol import (
+            clear_current_credential,
+            current_credential,
+            set_current_credential,
+        )
 
         cur = current_credential()
         if cur is None:
             return
         ident = (cur.username, cur.domain)
-        survivor_ids = {(c.username, c.domain) for c in survivors}
-        if ident in getattr(self, "_initial_cred_ids", set()) and ident not in survivor_ids:
+        by_ident = {(c.username, c.domain): c for c in survivors}
+        if ident in by_ident:
+            match = by_ident[ident]
+            if match != cur:  # same account, fields changed -> refresh
+                set_current_credential(match)
+        elif ident in getattr(self, "_initial_cred_ids", set()):
             clear_current_credential()
 
     def _clear_deleted_current_host(self, survivors: list) -> None:

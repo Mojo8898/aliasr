@@ -593,3 +593,27 @@ async def test_deleting_current_host_clears_profile_target(app, nxc_home):
         await pilot.pause()
 
     assert "ip" not in exegol.current_host()
+
+
+async def test_editing_current_credential_refreshes_profile(app, nxc_home):
+    """Editing the current credential's fields updates profile.sh on close."""
+    from aliasr.tui.creds_screen.creds_screen import CredsScreen
+
+    creds_mod._db.write([Credential("admin", "old", "", "corp.local")])
+    exegol.set_current_credential(Credential("admin", "old", "", "corp.local"))
+
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        await app.push_screen(CredsScreen())
+        await pilot.pause()
+        s = app.screen
+        # Simulate the editor's in-place replace (same id, new password).
+        idx = next(i for i, c in enumerate(s._rows["creds"]) if c.username == "admin")
+        row = s._rows["creds"][idx]
+        s._rows["creds"][idx] = Credential("admin", "newpass", "", row.domain, row.credential_id)
+        s._dirty["creds"] = True
+        await app.pop_screen()
+        await pilot.pause()
+
+    cur = exegol.current_credential()
+    assert cur is not None and cur.password == "newpass"
