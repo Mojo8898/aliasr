@@ -1,4 +1,5 @@
 # pygpoabuse
+#target/remote #os/linux #cat/ad
 
 ## Create scheduled task (abuses gplink over computer object)
 ```
