@@ -28,6 +28,31 @@ PLACEHOLDER_RE = re.compile(r"<([^>\s]+)>")
 CRED_PARAMS = {"user", "password", "nt_hash"}
 
 
+def _full_credential(partial, creds):
+    """Return the stored credential the build's values belong to, so the whole
+    credential (incl. fields the cheat didn't use, e.g. domain) is exported.
+
+    A stored cred is a candidate when every field the build *did* set matches it;
+    among candidates the richest (most non-empty fields) wins. Falls back to the
+    partial when nothing matches (a brand-new credential).
+    """
+    def _consistent(c) -> bool:
+        return (
+            (not partial.username or c.username == partial.username)
+            and (not partial.password or c.password == partial.password)
+            and (not partial.hash or c.hash == partial.hash)
+            and (not partial.domain or c.domain == partial.domain)
+        )
+
+    candidates = [c for c in creds if _consistent(c)]
+    if not candidates:
+        return partial
+    return max(
+        candidates,
+        key=lambda c: sum(bool(x) for x in (c.username, c.password, c.hash, c.domain)),
+    )
+
+
 def _apply_tags(cmd: str, tags: frozenset[str]) -> str:
     if "ps_encode" in tags:
         return f"powershell -e {base64.b64encode(cmd.encode('utf-16le')).decode('ascii')}"
@@ -442,10 +467,13 @@ class BuildScreen(ModalScreen[str | None]):
             save_creds(existing_creds)
 
             # Mirror exegol-history: record this credential as the current one in
-            # profile.sh, so it is the build default next time and is exported to
-            # shells that source the profile.
+            # profile.sh. Export the WHOLE credential, not just the fields this
+            # cheat used -- building with <user>/<password> should still carry the
+            # cred's domain/hash -- by recovering the full stored row that the
+            # build values belong to (save_creds merges them in).
             from aliasr.core.exegol import set_current_credential
-            set_current_credential(new_cred)
+            full = _full_credential(new_cred, load_creds())
+            set_current_credential(full)
 
         # Save non-cred parameters to globals (including domain)
         if self._params:
@@ -466,24 +494,48 @@ class BuildScreen(ModalScreen[str | None]):
         host_fields = {"ip", "fqdn", "dc_ip", "dc_fqdn"} & set(self._params)
         if host_fields:
             from aliasr.core.exegol import set_current_host
-            from aliasr.core.hosts import Host, save_hosts
+            from aliasr.core.hosts import Host, load_hosts, save_hosts
 
             vals = {
                 n: (self._values.get(n, "") or "").strip()
                 for n in ("ip", "fqdn", "dc_ip", "dc_fqdn")
             }
+            target_touched = ("ip" in host_fields or "fqdn" in host_fields) and (
+                vals["ip"] or vals["fqdn"]
+            )
+            dc_touched = ("dc_ip" in host_fields or "dc_fqdn" in host_fields) and (
+                vals["dc_ip"] or vals["dc_fqdn"]
+            )
+
             rows = []
-            if ("ip" in host_fields or "fqdn" in host_fields) and (vals["ip"] or vals["fqdn"]):
+            if target_touched:
                 rows.append(Host(ip=vals["ip"], hostname=vals["fqdn"], role=""))
-            if ("dc_ip" in host_fields or "dc_fqdn" in host_fields) and (vals["dc_ip"] or vals["dc_fqdn"]):
+            if dc_touched:
                 rows.append(Host(ip=vals["dc_ip"], hostname=vals["dc_fqdn"], role="DC"))
             if rows:
                 save_hosts(rows)
+
+            # Export the WHOLE host: ip and fqdn are coupled, so building with
+            # just one still carries the other by filling it from a stored host.
+            stored = load_hosts()
+
+            def _couple(ip: str, fqdn: str) -> tuple[str, str]:
+                if ip and not fqdn:
+                    m = next((h for h in stored if h.ip == ip and h.hostname), None)
+                    fqdn = m.hostname if m else fqdn
+                elif fqdn and not ip:
+                    m = next((h for h in stored if h.hostname == fqdn and h.ip), None)
+                    ip = m.ip if m else ip
+                return ip, fqdn
+
+            t_ip, t_fqdn = _couple(vals["ip"], vals["fqdn"]) if target_touched else ("", "")
+            d_ip, d_fqdn = _couple(vals["dc_ip"], vals["dc_fqdn"]) if dc_touched else ("", "")
+
             set_current_host(
-                ip=vals["ip"] if "ip" in host_fields else None,
-                fqdn=vals["fqdn"] if "fqdn" in host_fields else None,
-                dc_ip=vals["dc_ip"] if "dc_ip" in host_fields else None,
-                dc_fqdn=vals["dc_fqdn"] if "dc_fqdn" in host_fields else None,
+                ip=t_ip if target_touched else None,
+                fqdn=t_fqdn if target_touched else None,
+                dc_ip=d_ip if dc_touched else None,
+                dc_fqdn=d_fqdn if dc_touched else None,
             )
 
         # Rest of the method...

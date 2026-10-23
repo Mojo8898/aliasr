@@ -147,7 +147,8 @@ def _prompt_stale_config() -> None:
     print(f"Config: {path}")
     try:
         answer = input(
-            "Back it up to config.toml.bak and replace with the current defaults? [y/N] "
+            "Back it up to config.toml.bak and replace with the current defaults? "
+            "Press Enter to keep your config and stop asking. [y/N] "
         ).strip().lower()
     except EOFError:
         return

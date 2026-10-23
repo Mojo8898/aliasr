@@ -145,3 +145,18 @@ def test_prompt_stale_config_decline_opts_out(tmp_path, monkeypatch):
 
     monkeypatch.setattr("builtins.input", _boom)
     m._prompt_stale_config()
+
+
+def test_prompt_stale_config_enter_opts_out(tmp_path, monkeypatch):
+    """Just pressing Enter at the drift prompt keeps the config and opts out."""
+    from aliasr import __main__ as m
+
+    cfg = tmp_path / "config.toml"
+    cfg.write_text("[creds]\nmask = false\n\n[nxc]\n")
+    monkeypatch.setenv("ALIASR_CONFIG", str(cfg))
+    monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+    monkeypatch.setattr("builtins.input", lambda *_: "")  # Enter
+
+    m._prompt_stale_config()
+    with cfg.open("rb") as f:
+        assert tomllib.load(f)["config"]["ignore_drift"] is True

@@ -661,3 +661,49 @@ async def test_build_does_not_autoselect_stored_cred(app, nxc_home):
         build = app.screen
         assert not build._values.get("user")
         assert not build._values.get("password")
+
+
+# ---------- building exports the whole credential/host ----------
+
+
+async def test_build_exports_whole_credential(app, nxc_home):
+    """Building with <user>/<password> still carries the cred's domain to profile.sh."""
+    from pathlib import Path
+
+    from aliasr.tui.build_screen.build_screen import BuildScreen
+
+    creds_mod._db.write([Credential("admin", "pw", "", "corp.local")])
+    exegol.set_current_credential(Credential("admin", "pw", "", ""))  # no domain yet
+    md = Path(next(c.path for c in app.cheats if c.path.endswith(".md")))
+
+    async with app.run_test(size=(160, 45)) as pilot:
+        await pilot.pause()
+        await app.push_screen(BuildScreen("t", "echo <user> <password>", md))
+        await pilot.pause()
+        app.screen.set_focus(None)
+        app.screen.action_submit()
+        await pilot.pause()
+
+    cur = exegol.current_credential()
+    assert cur is not None and cur.domain == "corp.local"
+
+
+async def test_build_exports_whole_host(app, nxc_home):
+    """Building with <ip> still carries the host's fqdn to profile.sh."""
+    from pathlib import Path
+
+    from aliasr.tui.build_screen.build_screen import BuildScreen
+
+    creds_mod._db.write_hosts([Host("10.0.0.1", "dc01.corp.local", "")])
+    exegol.set_current_host(ip="10.0.0.1")
+    md = Path(next(c.path for c in app.cheats if c.path.endswith(".md")))
+
+    async with app.run_test(size=(160, 45)) as pilot:
+        await pilot.pause()
+        await app.push_screen(BuildScreen("t", "echo <ip>", md))
+        await pilot.pause()
+        app.screen.set_focus(None)
+        app.screen.action_submit()
+        await pilot.pause()
+
+    assert exegol.current_host().get("fqdn") == "dc01.corp.local"

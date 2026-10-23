@@ -27,7 +27,7 @@ _KRB_USER = re.compile(r"\[?\+\]?\s+([^\\]+)\\([^\s]+)\s+from\s+ccache", re.I)
 _ISSUE_RULES: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"KRB_AP_ERR_SKEW|clock skew", re.I),
      "Kerberos clock skew (KRB_AP_ERR_SKEW): sync your clock to the DC "
-     "(e.g. `sudo rdate -n <dc>`, `ntpdate <dc>`, or run under faketime)."),
+     "(e.g. `sudo rdate -n <dc>`, `ntpdate <dc>`, or run under skewrun)."),
     (re.compile(r"KDC_ERR_PREAUTH_FAILED", re.I),
      "Kerberos pre-auth failed (KDC_ERR_PREAUTH_FAILED): wrong password or hash."),
     (re.compile(r"KDC_ERR_[CS]_PRINCIPAL_UNKNOWN", re.I),
