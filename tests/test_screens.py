@@ -166,12 +166,12 @@ async def test_param_pick_does_not_reopen_autocomplete(app):
     from aliasr.tui.build_screen.param_screen import ParamScreen
     from aliasr.tui.utils.smart_complete import SmartComplete
 
-    # A bundled cheat file that defines references for <working_dir>, so the
+    # A bundled cheat file that defines references for <lin_dir>, so the
     # param screen has options and stays open.
     md = Path(next(c.path for c in app.cheats if c.path.endswith("linux/linux_privesc.md")))
     async with app.run_test(size=(160, 45)) as pilot:
         await pilot.pause()
-        await app.push_screen(BuildScreen("t", "cd <working_dir>", md))
+        await app.push_screen(BuildScreen("t", "cd <lin_dir>", md))
         await pilot.pause()
         build = app.screen
         inp = build._inputs[0]
@@ -188,7 +188,7 @@ async def test_param_pick_does_not_reopen_autocomplete(app):
         sc = build.query_one(SmartComplete)
         assert app.focused is inp
         assert inp.value == "/tmp"
-        assert build._values["working_dir"] == "/tmp"
+        assert build._values["lin_dir"] == "/tmp"
         assert not sc.display, "autocomplete dropdown re-opened after param selection"
 
 
