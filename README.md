@@ -15,8 +15,8 @@ Some of the largest improvements Aliasr implements include:
 - [x] Significantly expanded tmux integration.
 - [x] Cheat variations that allow for different authentication methods to be built into a single parameter.
 - [x] Automatic parameter population based on history and other sources.
-- [x] Exegol-history (SQLite) integration for credential and host management.
-- [x] NetExec (`nxcdb`) integration - credentials and hosts are pulled in on startup and kept in sync.
+- [x] [Exegol-history](https://github.com/ThePorgs/Exegol-history) (SQLite) integration for credential and host management.
+- [x] [NetExec](https://github.com/Pennyw0rth/NetExec) (`nxcdb`) integration - credentials and hosts are pulled in on startup and kept in sync.
 - [x] A built-in `scan` that fingerprints a target with NetExec and auto-fills your globals.
 
 ## Documentation
@@ -41,11 +41,13 @@ uv tool install git+https://github.com/Mojo8898/aliasr
 pipx install git+https://github.com/Mojo8898/aliasr
 ```
 
-I also highly recommend adding the following line to your `~/.zshrc`:
+I also highly recommend wrapping aliasr in a shell function so the credential and host you select follow you into your shell. Add this to your `~/.zshrc`:
 
 ```bash
-alias a=aliasr
+function a { aliasr "$@" && exec zsh }
 ```
+
+aliasr records the credential and host you build with as [Exegol-history](https://github.com/ThePorgs/Exegol-history)'s *current* credential/host (written to its `profile.sh`). The `&& exec zsh` re-sources your shell when aliasr exits, so those values (and your prompt) refresh live instead of on the next new shell. For this to take effect, first set up Exegol-history's shell integration: source its `profile.sh` from your `~/.zshrc`, and optionally add its prompt hook to display the current `USER`/`DOMAIN`. See the [Exegol-history setup](https://github.com/ThePorgs/Exegol-history#readme) and aliasr's [Credentials & Hosts](https://github.com/Mojo8898/aliasr/wiki/05-%E2%80%90-Credentials-and-Hosts) guide for the details.
 
 If you intend on leveraging the extended tmux integration aliasr offers (which you should), also add the following to your `~/.tmux.conf`:
 
