@@ -17,8 +17,13 @@ class CheatList(Static):
 
     def _one_line(self, val) -> str:
         txt = val.plain if isinstance(val, Text) else str(val or "")
-        txt = txt.replace("\r\n", " ").replace("\r", " ").replace("\n", " ")
-        txt = re.sub(r"\s+", " ", txt)
+        # Cheats store one command per line (a trailing "\" continues a command).
+        # Collapse continuations to a space, then join commands with "; " so the
+        # one-row preview stays readable instead of running words together.
+        txt = txt.replace("\r\n", "\n").replace("\r", "\n")
+        txt = re.sub(r"\\\n", " ", txt)
+        txt = re.sub(r"\s*\n\s*", "; ", txt)
+        txt = re.sub(r"[ \t]+", " ", txt).strip()
         return txt
 
     def _rows(self) -> int:

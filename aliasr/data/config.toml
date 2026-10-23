@@ -71,6 +71,12 @@ col_2 = "ctrl+t"  # Password/Value
 col_3 = "ctrl+y"  # NT Hash
 col_4 = "ctrl+g"  # Domain
 
+[build]
+# Separator run before each command in a multi-command cheat, announcing the
+# command about to execute. It becomes a shell function `s` invoked as
+# `s '<command>'`, so "$1" is the command text. Bash/sh only.
+separator = "if [ -t 1 ]; then printf '\\n\\033[1;36m=== %s ===\\033[0m\\n' \"$1\"; else printf '\\n=== %s ===\\n' \"$1\"; fi"
+
 [layout]
 globals_rows = 2
 globals_columns = 6

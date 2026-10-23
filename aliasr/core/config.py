@@ -62,6 +62,11 @@ class ThemeConf:
 
 
 @dataclass(frozen=True)
+class BuildConf:
+    separator: str
+
+
+@dataclass(frozen=True)
 class Config:
     cheats: CheatsConf
     globals: GlobalsConf
@@ -69,6 +74,7 @@ class Config:
     keybindings: KeyBindingsConf
     layout: dict[str, int]
     theme: ThemeConf
+    build: BuildConf
 
 
 # ---------- Helpers ----------
@@ -283,6 +289,8 @@ def _build_config() -> Config:
         footer_key_foreground=theme_raw["footer_key_foreground"],
     )
 
+    build_conf = BuildConf(separator=str(merged["build"]["separator"]))
+
     layout_dict = {k: int(v) for k, v in merged["layout"].items()}
 
     return Config(
@@ -292,6 +300,7 @@ def _build_config() -> Config:
         keybindings=kb_conf,
         layout=layout_dict,
         theme=theme_conf,
+        build=build_conf,
     )
 
 
@@ -345,3 +354,4 @@ GLOBALS_COLUMNS: int = CONFIG.layout["globals_columns"]
 BUILD_COLUMNS: int = CONFIG.layout["build_columns"]
 
 THEME: ThemeConf = CONFIG.theme
+BUILD_SEPARATOR: str = CONFIG.build.separator
