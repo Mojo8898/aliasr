@@ -10,7 +10,7 @@ export KRB5CCNAME=$(pwd)/'<user>'.ccache
 
 bloodyAD --host <fqdn> -d <domain> -u '<user>' -k get writable
 
-bloodhound-ce-python --zip -c All -d <domain> -dc <dc_fqdn> -ns <dc_ip> -u '<user>' -k -no-pass
+nxc ldap <ip> --use-kcache --bloodhound -c All --dns-server <ip>
 
 nxc smb <ip> --generate-krb5-file /etc/krb5.conf
 
