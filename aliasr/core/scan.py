@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
 import socket
-from subprocess import run
+from subprocess import run, TimeoutExpired
 from typing import Any
 
 
@@ -17,22 +18,88 @@ _ADCS_CN = re.compile(r"Found CN:\s+(.+)", re.I)
 _KRB_USER = re.compile(r"\[?\+\]?\s+([^\\]+)\\([^\s]+)\s+from\s+ccache", re.I)
 
 
+# --------- error surfacing ---------
+#
+# NetExec marks a failed probe with a "[-] domain\\user:password <CODE>" line.
+# That line contains the password, so we never echo it: we match a known,
+# password-free signature and surface a friendly hint instead.
+
+_ISSUE_RULES: list[tuple[re.Pattern[str], str]] = [
+    (re.compile(r"KRB_AP_ERR_SKEW|clock skew", re.I),
+     "Kerberos clock skew (KRB_AP_ERR_SKEW): sync your clock to the DC "
+     "(e.g. `sudo rdate -n <dc>`, `ntpdate <dc>`, or run under faketime)."),
+    (re.compile(r"KDC_ERR_PREAUTH_FAILED", re.I),
+     "Kerberos pre-auth failed (KDC_ERR_PREAUTH_FAILED): wrong password or hash."),
+    (re.compile(r"KDC_ERR_[CS]_PRINCIPAL_UNKNOWN", re.I),
+     "Kerberos principal unknown (KDC_ERR_*_PRINCIPAL_UNKNOWN): check the "
+     "username and realm."),
+    (re.compile(r"Name or service not known|could not be resolved|getaddrinfo|"
+                r"Errno -[0-9]|Temporary failure in name resolution", re.I),
+     "DNS resolution failed: the target/DC name couldn't be resolved "
+     "(use the FQDN and point your resolver at the DC)."),
+    (re.compile(r"STATUS_LOGON_FAILURE", re.I),
+     "Authentication failed (STATUS_LOGON_FAILURE): bad username, password, or hash."),
+    (re.compile(r"STATUS_ACCOUNT_LOCKED_OUT", re.I),
+     "Account locked out (STATUS_ACCOUNT_LOCKED_OUT)."),
+    (re.compile(r"STATUS_PASSWORD_EXPIRED|STATUS_PASSWORD_MUST_CHANGE", re.I),
+     "Password expired or must be changed for this account."),
+    (re.compile(r"STATUS_ACCESS_DENIED", re.I),
+     "Access denied (STATUS_ACCESS_DENIED): the account lacks rights for this query."),
+    (re.compile(r"Connection (?:refused|reset)|timed out|No route to host|unreachable",
+                re.I),
+     "Could not reach the target (connection refused / timeout / unreachable)."),
+]
+
+
+def _detect_issue(line: str) -> str | None:
+    """Return a friendly, password-free hint if the line names a known error."""
+    for rx, msg in _ISSUE_RULES:
+        if rx.search(line):
+            return msg
+    return None
+
+
+def _add_issue(issues: list[str], msg: str) -> None:
+    if msg not in issues:
+        issues.append(msg)
+
+
 # --------- helpers ---------
 
 
 def _local_ip_for(ip: str) -> str:
-    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-        s.connect((ip, 1))
-        return s.getsockname()[0]
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect((ip, 1))
+            return s.getsockname()[0]
+    except OSError:
+        return ""
 
 
-def _run(args: list[str], timeout: float = 12.0) -> list[str]:
+def _run(
+    args: list[str],
+    issues: list[str] | None = None,
+    timeout: float = 12.0,
+) -> list[str]:
     try:
         p = run(args, capture_output=True, text=True, timeout=timeout)
         out = (p.stdout or "") + ("\n" + p.stderr if p.stderr else "")
-        return out.splitlines()
+        lines = out.splitlines()
+    except TimeoutExpired:
+        if issues is not None:
+            _add_issue(issues, "A NetExec probe timed out before completing.")
+        return []
     except Exception:
         return []
+
+    if issues is not None:
+        for ln in lines:
+            if "[+]" in ln:  # success line — skip (also avoids scanning creds)
+                continue
+            msg = _detect_issue(ln)
+            if msg:
+                _add_issue(issues, msg)
+    return lines
 
 
 def _merge_fill(base: dict[str, Any], extra: dict[str, Any]) -> None:
@@ -41,16 +108,37 @@ def _merge_fill(base: dict[str, Any], extra: dict[str, Any]) -> None:
             base[k] = v
 
 
+def _auth_args(
+    user: str | None,
+    password: str | None,
+    nt_hash: str | None,
+    kerberos: bool,
+    use_kcache: bool,
+) -> list[str]:
+    """Translate the scan's auth options straight into NetExec flags.
+
+    Options map 1:1 onto nxc, so any combination nxc accepts works here. In
+    particular ``-k`` is emitted only when explicitly requested — it is never
+    forced onto password/hash auth.
+    """
+    args: list[str] = []
+    if user:
+        args += ["-u", user]
+    if password:
+        args += ["-p", password]
+    if nt_hash:
+        args += ["-H", nt_hash]
+    if kerberos:
+        args.append("-k")
+    if use_kcache:
+        args.append("--use-kcache")
+    return args
+
+
 # --------- SMB-first fingerprint (no creds) ---------
 
 
-def _fp_smb(
-    ip: str,
-    user: str | None = None,
-    password: str | None = None,
-    nt_hash: str | None = None,
-    kerberos: bool = False,
-) -> dict[str, Any]:
+def _fp_smb(ip: str, auth: list[str], issues: list[str] | None = None) -> dict[str, Any]:
     res: dict[str, Any] = {
         "Hostname": None,
         "Domain": None,
@@ -59,26 +147,15 @@ def _fp_smb(
         "User": None,
     }
 
-    # Build command based on auth type
-    cmd = ["nxc", "smb", ip]
-    if kerberos:
-        cmd.append("--use-kcache")
-    elif user:
-        cmd.extend(["-u", user])
-        if password:
-            cmd.extend(["-p", password])
-        elif nt_hash:
-            cmd.extend(["-H", nt_hash])
-
-    for ln in _run(cmd):
+    for ln in _run(["nxc", "smb", ip, *auth], issues):
         m = _BANNER_NAME.search(ln)
         if m:
             res["Hostname"] = m.group(1).strip()
         m = _BANNER_DOM.search(ln)
         if m:
             res["Domain"] = m.group(1).strip()
-        # Try to extract user from Kerberos auth
-        if kerberos and not res["User"]:
+        # Pick up the principal when authenticating from a Kerberos ccache
+        if not res["User"]:
             m = _KRB_USER.search(ln)
             if m:
                 res["User"] = m.group(2).strip()
@@ -93,10 +170,10 @@ def _fp_smb(
 # --------- LDAP fingerprint ---------
 
 
-def _fp_ldap_banner(ip: str) -> dict[str, Any]:
+def _fp_ldap_banner(ip: str, issues: list[str] | None = None) -> dict[str, Any]:
     res: dict[str, Any] = {"Hostname": None, "Domain": None, "FQDN": None}
 
-    for ln in _run(["nxc", "ldap", ip]):
+    for ln in _run(["nxc", "ldap", ip], issues):
         m = _BANNER_NAME.search(ln)
         if m:
             res["Hostname"] = m.group(1).strip()
@@ -109,13 +186,7 @@ def _fp_ldap_banner(ip: str) -> dict[str, Any]:
     return res
 
 
-def _fp_ldap(
-    ip: str,
-    user: str | None = None,
-    password: str | None = None,
-    nt_hash: str | None = None,
-    kerberos: bool = False,
-) -> dict[str, Any]:
+def _fp_ldap(ip: str, auth: list[str], issues: list[str] | None = None) -> dict[str, Any]:
     res: dict[str, Any] = {
         "Hostname": None,
         "Domain": None,
@@ -127,30 +198,10 @@ def _fp_ldap(
         "User": None,
     }
 
-    # Build base command for ADCS module
-    cmd_adcs = ["nxc", "ldap", ip, "-M", "adcs"]
-    cmd_sid = ["nxc", "ldap", ip, "--get-sid"]
+    cmd_adcs = ["nxc", "ldap", ip, "-M", "adcs", *auth]
+    cmd_sid = ["nxc", "ldap", ip, "--get-sid", *auth]
 
-    if kerberos:
-        cmd_adcs.append("--use-kcache")
-        cmd_sid.append("--use-kcache")
-    elif user:
-        cmd_adcs.extend(["-u", user])
-        cmd_sid.extend(["-u", user])
-        if password:
-            cmd_adcs.extend(["-p", password])
-            cmd_sid.extend(["-p", password])
-        elif nt_hash:
-            cmd_adcs.extend(["-H", nt_hash])
-            cmd_sid.extend(["-H", nt_hash])
-        cmd_adcs.append("-k")
-        cmd_sid.append("-k")
-
-    else:
-        # No valid auth method
-        return res
-
-    for ln in _run(cmd_adcs):
+    for ln in _run(cmd_adcs, issues):
         m = _BANNER_NAME.search(ln)
         if m:
             res["Hostname"] = m.group(1).strip()
@@ -165,19 +216,19 @@ def _fp_ldap(
             m = _ADCS_CN.search(ln)
             if m:
                 res["CA"] = m.group(1).strip()
-        # Try to extract user from Kerberos auth
-        if kerberos and not res["User"]:
+        # Pick up the principal when authenticating from a Kerberos ccache
+        if not res["User"]:
             m = _KRB_USER.search(ln)
             if m:
                 res["User"] = m.group(2).strip()
 
-    sid_txt = "\n".join(_run(cmd_sid))
+    sid_txt = "\n".join(_run(cmd_sid, issues))
     m_sid = _SID_LINE.search(sid_txt)
     if m_sid:
         res["Domain SID"] = m_sid.group(1)
 
-    # Also check for user in SID output for Kerberos
-    if kerberos and not res["User"]:
+    # Also check for the principal in the SID output
+    if not res["User"]:
         m = _KRB_USER.search(sid_txt)
         if m:
             res["User"] = m.group(2).strip()
@@ -198,8 +249,16 @@ def scan_target(
     password: str | None = None,
     nt_hash: str | None = None,
     kerberos: bool = False,
+    use_kcache: bool = False,
+    issues: list[str] | None = None,
 ) -> dict[str, Any]:
-    """Scan a target and return discovered values as a dict."""
+    """Scan a target and return discovered values as a dict.
+
+    Any NetExec problems detected during the scan (clock skew, DNS failures,
+    bad credentials, ...) are appended to ``issues`` when a list is supplied.
+    """
+    if issues is None:
+        issues = []
     vals: dict[str, Any] = {
         "lhost": _local_ip_for(ip),
         "ip": ip,
@@ -216,21 +275,22 @@ def scan_target(
         "tld": None,
     }
 
-    has_auth = bool(user and (password or nt_hash)) or kerberos
+    auth = _auth_args(user, password, nt_hash, kerberos, use_kcache)
+    # LDAP ADCS/SID lookups need real authentication; a bare -u is not enough.
+    has_auth = bool(password or nt_hash or kerberos or use_kcache)
 
     # 1) SMB first
-    smb = _fp_smb(ip, user, password, nt_hash, kerberos)
+    smb = _fp_smb(ip, auth, issues)
 
-    # Extract user from Kerberos if found
-    if kerberos and smb.get("User"):
+    # Pick up the principal discovered via a Kerberos ccache
+    if not vals["user"] and smb.get("User"):
         vals["user"] = smb["User"]
-        user = smb["User"]  # Update for later use
 
     # 2) LDAP next (if we have auth)
-    ldap = _fp_ldap(ip, user, password, nt_hash, kerberos) if has_auth else {}
+    ldap = _fp_ldap(ip, auth, issues) if has_auth else {}
 
-    # Update user from LDAP if Kerberos and not already found
-    if kerberos and not vals["user"] and ldap.get("User"):
+    # Fill the principal from LDAP if SMB didn't surface it
+    if not vals["user"] and ldap.get("User"):
         vals["user"] = ldap["User"]
 
     # merge: keep SMB values, fill missing from LDAP
@@ -261,7 +321,7 @@ def scan_target(
     ldap_banner = {}
     if not ldap.get("Domain"):
         # banner fallback both unauthenticated and when auth LDAP didn't return domain
-        ldap_banner = _fp_ldap_banner(ip)
+        ldap_banner = _fp_ldap_banner(ip, issues)
 
     # Require a real domain signal (and ideally an fqdn/hostname) before calling it a DC
     dc_domain = ldap.get("Domain") or ldap_banner.get("Domain")
@@ -290,6 +350,7 @@ def run_scan_cli(
     password: str | None = None,
     nt_hash: str | None = None,
     kerberos: bool = False,
+    use_kcache: bool = False,
 ) -> int:
     """Execute scan command and update globals."""
     from aliasr.core.globals import load_globals_raw, save_globals
@@ -301,16 +362,30 @@ def run_scan_cli(
 
     console = Console()
 
+    if shutil.which("nxc") is None:
+        console.print(
+            "[red]✗ NetExec ('nxc') was not found on PATH.[/] "
+            "Install it to use [bold]aliasr scan[/]."
+        )
+        return 1
+
     # Build scan info display
     scan_info = f"[cyan]Target:[/] {ip}"
-    if kerberos:
-        scan_info += "\n[cyan]Auth:[/] Kerberos (ccache)"
-        if os.environ.get("KRB5CCNAME"):
-            scan_info += f"\n[dim]Cache: {os.environ['KRB5CCNAME']}[/]"
-    elif user:
+    if user:
         scan_info += f"\n[cyan]User:[/] {user}"
-        if password or nt_hash:
-            scan_info += " [dim](with credentials)[/]"
+    auth_bits = []
+    if password:
+        auth_bits.append("password")
+    if nt_hash:
+        auth_bits.append("NT hash")
+    if kerberos:
+        auth_bits.append("kerberos")
+    if use_kcache:
+        auth_bits.append("ccache")
+    if auth_bits:
+        scan_info += f"\n[cyan]Auth:[/] {', '.join(auth_bits)}"
+    if use_kcache and os.environ.get("KRB5CCNAME"):
+        scan_info += f"\n[dim]Cache: {os.environ['KRB5CCNAME']}[/]"
 
     console.print(
         Panel.fit(scan_info, title="[bold]Scanning Target[/]", border_style="cyan")
@@ -318,11 +393,14 @@ def run_scan_cli(
     console.print()
 
     # Run the scan
+    issues: list[str] = []
     with console.status("[bold yellow]Scanning...[/]", spinner="dots"):
-        results = scan_target(ip, user, password, nt_hash, kerberos)
+        results = scan_target(
+            ip, user, password, nt_hash, kerberos, use_kcache, issues
+        )
 
-    # If Kerberos was used and we found a user, update the user variable
-    if kerberos and results.get("user"):
+    # If we discovered the principal (e.g. from a ccache), use it for creds
+    if results.get("user"):
         user = results["user"]
 
     # Prepare the payload for merging with globals
@@ -435,7 +513,24 @@ def run_scan_cli(
             table.add_row(key, display_value)
 
     console.print(table)
+
+    if issues:
+        console.print()
+        console.print(
+            Panel.fit(
+                "\n".join(f"[yellow]⚠[/]  {m}" for m in issues),
+                title="[bold yellow]Warnings[/]",
+                border_style="yellow",
+            )
+        )
+
     console.print()
-    console.print("[green]✓[/] Globals updated successfully!")
+    if issues:
+        console.print(
+            "[yellow]⚠  Globals updated, but some lookups failed "
+            "(see warnings above).[/]"
+        )
+    else:
+        console.print("[green]✓[/] Globals updated successfully!")
 
     return 0

@@ -49,28 +49,34 @@ def _parser() -> argparse.ArgumentParser:
         metavar="IP",
         help="Target IP address to scan"
     )
+
+    # Authentication: these mirror NetExec's own flags and are passed straight
+    # through to nxc, so any combination NetExec accepts is accepted here.
     scan.add_argument(
         "-u", "--user",
         metavar="USER",
         help="Username for authenticated scan"
     )
-
-    # Authentication options (mutually exclusive)
-    auth_group = scan.add_mutually_exclusive_group()
-    auth_group.add_argument(
+    scan.add_argument(
         "-p", "--password",
         metavar="PASSWORD",
         help="Password for authenticated scan"
     )
-    auth_group.add_argument(
+    scan.add_argument(
         "-H", "--hash",
         metavar="HASH",
         help="NT hash for authenticated scan"
     )
-    auth_group.add_argument(
+    scan.add_argument(
         "-k", "--kerberos",
         action="store_true",
-        help="Use Kerberos authentication (ccache)"
+        help="Use Kerberos auth (requests a TGT from the supplied creds, "
+             "or uses the ccache when given alone)"
+    )
+    scan.add_argument(
+        "--use-kcache",
+        action="store_true",
+        help="Use Kerberos auth from the ccache (KRB5CCNAME)"
     )
 
     # ---------- List ----------
@@ -124,11 +130,12 @@ def main() -> int:
     if args.cmd == "scan":
         from aliasr.core.scan import run_scan_cli
         return run_scan_cli(
-            args.ip, 
-            args.user, 
+            args.ip,
+            args.user,
             args.password,
-            getattr(args, 'hash', None),
-            getattr(args, 'kerberos', False)
+            getattr(args, "hash", None),
+            getattr(args, "kerberos", False),
+            getattr(args, "use_kcache", False),
         )
 
     os.environ.setdefault("COLORTERM", "truecolor")
