@@ -19,12 +19,14 @@ from aliasr.tui.utils.tables import (
 from aliasr.tui.utils.footer import Footer
 
 
-# Per-tab copy columns: (attribute, human label). Credentials expose four,
-# hosts three; check_action hides the inactive tab's copy keys from the footer.
+# Per-tab copy columns: (attribute, human label). Both tabs expose four;
+# check_action hides the inactive tab's copy keys from the footer. For hosts,
+# "hostname"/"domain" are the short name and domain split out of the stored FQDN.
 _COPY_COLS = {
     "creds": {1: ("username", "Username"), 2: ("password", "Password"),
               3: ("hash", "NT Hash"), 4: ("domain", "Domain")},
-    "hosts": {1: ("ip", "IP"), 2: ("hostname", "Hostname"), 3: ("role", "Role")},
+    "hosts": {1: ("ip", "IP"), 2: ("short_hostname", "Hostname"),
+              3: ("domain", "Domain"), 4: ("role", "Role")},
 }
 
 
@@ -57,8 +59,10 @@ class CredsScreen(ModalScreen[None]):
         Binding(kb_table_copy("col_1"), "copy_ip", "Copy IP",
                 tooltip="Copy the selected IP."),
         Binding(kb_table_copy("col_2"), "copy_hostname", "Copy Hostname",
-                tooltip="Copy the selected hostname."),
-        Binding(kb_table_copy("col_3"), "copy_role", "Copy Role",
+                tooltip="Copy the selected short hostname."),
+        Binding(kb_table_copy("col_3"), "copy_host_domain", "Copy Domain",
+                tooltip="Copy the selected host's domain."),
+        Binding(kb_table_copy("col_4"), "copy_role", "Copy Role",
                 tooltip="Copy the selected role."),
     ]
 
@@ -229,7 +233,7 @@ class CredsScreen(ModalScreen[None]):
         falls through to whichever binding is enabled.
         """
         creds_only = {"copy_user", "copy_password", "copy_hash", "copy_domain"}
-        hosts_only = {"copy_ip", "copy_hostname", "copy_role"}
+        hosts_only = {"copy_ip", "copy_hostname", "copy_host_domain", "copy_role"}
         if action in creds_only:
             return self._tab == "creds"
         if action in hosts_only:
@@ -368,7 +372,10 @@ class CredsScreen(ModalScreen[None]):
         self._copy_selected("ip", "IP")
 
     def action_copy_hostname(self) -> None:
-        self._copy_selected("hostname", "Hostname")
+        self._copy_selected("short_hostname", "Hostname")
+
+    def action_copy_host_domain(self) -> None:
+        self._copy_selected("domain", "Domain")
 
     def action_copy_role(self) -> None:
         self._copy_selected("role", "Role")

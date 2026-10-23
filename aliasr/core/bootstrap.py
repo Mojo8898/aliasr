@@ -60,6 +60,48 @@ def _load_cached_data(app):
 
     app.cheats = get_loaded_cheats()
     app.globals = load_globals()
+    _seed_discovered_globals(app)
+
+
+def _set_global(app, key: str, val: str) -> None:
+    """Set a global in memory and persist it to globals.json, if it exists."""
+    from aliasr.core.globals import save_global
+
+    if key in app.globals:
+        app.globals[key] = val
+        save_global(key, val)
+
+
+def _seed_discovered_globals(app):
+    """Auto-populate globals for the current engagement, persisting to globals.json.
+
+    Two sources, both written so the values become real persistent globals (the
+    grid shows them this session, and they survive a restart):
+
+    * Host globals (ip / fqdn / hostname / domain / dc_ip / dc_fqdn) from the
+      current/stored host, incl. nxcdb pulls -- the same data the build form
+      autofills. Only globals that already exist and are *blank* are filled, so
+      a value the user set is never overwritten.
+    * ``lhost`` from the local attacker interface (tun0, else eth0). Unlike the
+      target host, this is a volatile local address (a VPN tap IP changes each
+      session), so it is refreshed to the detected IP on every launch. When no
+      tun0/eth0 is present (no IP found) any existing ``lhost`` is left as-is.
+    """
+    try:
+        from aliasr.core.hosts import discovered_host_globals
+        from aliasr.core.net import local_lhost
+
+        discovered = discovered_host_globals()
+        lhost = local_lhost()
+    except Exception:
+        return
+
+    for key, val in discovered.items():
+        if val and key in app.globals and not (app.globals.get(key) or "").strip():
+            _set_global(app, key, val)
+
+    if lhost:
+        _set_global(app, "lhost", lhost)
 
 
 # ---------- Public API ----------

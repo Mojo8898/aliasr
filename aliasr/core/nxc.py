@@ -159,12 +159,18 @@ def read_hosts(workspace: str | None = None) -> list[Host]:
 
     Hosts are unioned across every protocol DB and merged by ip (the same host
     is recorded by several protocols); the short name + domain are joined into
-    an FQDN, and ``smb.db``'s ``dc`` flag becomes ``role="DC"``.
+    an FQDN, and a host is tagged ``role="DC"`` when it looks like a domain
+    controller -- either ``smb.db``'s ``dc`` flag is set, or the host appears in
+    ``ldap.db``. The latter matters because NetExec does not reliably persist
+    the ``dc`` flag (a plain ``nxc smb`` run leaves it NULL even when it prints
+    ``(DC:True)``), whereas LDAP/389 is a DC-only service in AD, so a row in
+    ``ldap.db`` is itself a dependable DC signal.
     """
     ws = workspace or current_workspace()
     meta: dict[str, dict[str, str]] = {}
     dc_ips: set[str] = set()
     for db in _protocol_dbs(ws):
+        is_ldap = db.stem == "ldap"
         try:
             with sqlite3.connect(f"file:{db}?mode=ro", uri=True) as conn:
                 cols = _columns(conn, "hosts")
@@ -187,7 +193,7 @@ def read_hosts(workspace: str | None = None) -> list[Host]:
                 m["hostname"] = hostname
             if domain and not m["domain"]:
                 m["domain"] = domain
-            if dc:
+            if dc or is_ldap:
                 dc_ips.add(ip)
     return [
         Host(

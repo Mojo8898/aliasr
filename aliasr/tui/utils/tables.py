@@ -99,6 +99,7 @@ def host_header():
     t = Table(show_header=True, expand=True, pad_edge=False, box=None)
     t.add_column("IP", no_wrap=True, justify="center", ratio=1)
     t.add_column("Hostname", no_wrap=True, justify="center", ratio=1)
+    t.add_column("Domain", no_wrap=True, justify="center", ratio=1)
     t.add_column("Role", no_wrap=True, justify="center", ratio=1)
     return Padding(t, (0, 0, 0, 0))
 
@@ -107,6 +108,8 @@ def host_option(h: Host, idx: int) -> Option:
     t = Table(show_header=False, expand=True, pad_edge=False, box=None)
     t.add_column("ip", no_wrap=True, ratio=1)
     t.add_column("hostname", no_wrap=True, ratio=1)
+    t.add_column("domain", no_wrap=True, ratio=1)
     t.add_column("role", no_wrap=True, ratio=1)
-    t.add_row(h.ip, h.hostname, h.role)
+    # hostname holds the FQDN; show its short name and domain in separate columns.
+    t.add_row(h.ip, h.short_hostname, h.domain, h.role)
     return Option(t, id=idx)

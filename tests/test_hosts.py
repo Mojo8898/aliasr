@@ -11,6 +11,42 @@ def _conn() -> sqlite3.Connection:
     return sqlite3.connect(str(CREDS_DB))
 
 
+def test_host_splits_fqdn_into_hostname_and_domain():
+    """The stored `hostname` field holds the FQDN; short name and domain are
+    derived from it (a bare hostname with no domain keeps an empty domain)."""
+    dc = Host("10.0.0.1", "DC01.corp.local", "DC")
+    assert dc.short_hostname == "DC01"
+    assert dc.domain == "corp.local"
+
+    # Linux-style host: hostname but no domain.
+    linux = Host("10.0.0.9", "web01", "")
+    assert linux.short_hostname == "web01"
+    assert linux.domain == ""
+
+    # Deeper FQDN: only the first label is the hostname.
+    sub = Host("10.0.0.2", "srv.ad.corp.local", "")
+    assert sub.short_hostname == "srv"
+    assert sub.domain == "ad.corp.local"
+
+
+def test_discovered_host_globals_from_stored_dc():
+    """discovered_host_globals maps a stored DC into the host globals, splitting
+    its FQDN into hostname/domain and filling both target and dc fields."""
+    from aliasr.core.hosts import clear_hosts, discovered_host_globals
+
+    clear_hosts()
+    exegol.clear_current_host()
+    save_hosts([Host("10.0.0.1", "dc01.corp.local", "DC")])
+
+    g = discovered_host_globals()
+    assert g["ip"] == "10.0.0.1"
+    assert g["fqdn"] == "dc01.corp.local"
+    assert g["hostname"] == "dc01"
+    assert g["domain"] == "corp.local"
+    assert g["dc_ip"] == "10.0.0.1"
+    assert g["dc_fqdn"] == "dc01.corp.local"
+
+
 def test_save_and_load_hosts_roundtrip():
     save_hosts([Host("10.0.0.5", "web01.corp.local", ""), Host("10.0.0.1", "dc01.corp.local", "DC")])
     out = load_hosts()

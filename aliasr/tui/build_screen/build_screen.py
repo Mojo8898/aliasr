@@ -158,13 +158,21 @@ class BuildScreen(ModalScreen[str | None]):
                     if param_name in self._params and not self._values.get(param_name) and cred_value:
                         self._values[param_name] = cred_value
 
-        # Seed host params from exegol-history's current host (profile.sh),
-        # shared the same way as the current credential.
-        if {"ip", "fqdn", "dc_ip", "dc_fqdn"} & set(self._params):
-            from aliasr.core.exegol import current_host
-            for pname, val in current_host().items():
-                if pname in self._params and val:
-                    self._values[pname] = val
+        # Seed host params from the current engagement's host: exegol-history's
+        # current host (profile.sh), falling back to the stored hosts (incl.
+        # nxcdb pulls). Shared with the globals grid via discovered_host_globals.
+        if {"ip", "fqdn", "hostname", "domain", "dc_ip", "dc_fqdn"} & set(self._params):
+            from aliasr.core.hosts import discovered_host_globals
+
+            for pname, val in discovered_host_globals().items():
+                if pname not in self._params or not val:
+                    continue
+                # Don't clobber a hostname/domain already filled from the
+                # credential (its domain is the authenticated one); the host
+                # only supplies these when they're still empty.
+                if pname in ("hostname", "domain") and self._values.get(pname):
+                    continue
+                self._values[pname] = val
 
         self._preview: Static | None = None
         self._inputs: list[Input] = []
@@ -510,16 +518,11 @@ class BuildScreen(ModalScreen[str | None]):
                 vals["dc_ip"] or vals["dc_fqdn"]
             )
 
-            rows = []
-            if target_touched:
-                rows.append(Host(ip=vals["ip"], hostname=vals["fqdn"], role=""))
-            if dc_touched:
-                rows.append(Host(ip=vals["dc_ip"], hostname=vals["dc_fqdn"], role="DC"))
-            if rows:
-                save_hosts(rows)
-
-            # Export the WHOLE host: ip and fqdn are coupled, so building with
-            # just one still carries the other by filling it from a stored host.
+            # Couple ip/fqdn from the stored hosts BEFORE saving: a build that
+            # supplied only one half (e.g. bloodyAD with <dc_fqdn> but no
+            # <dc_ip>) must still save the full host. Writing the half-populated
+            # row instead would miss the existing host on the (ip, hostname)
+            # UNIQUE key and duplicate it with a blank IP.
             stored = load_hosts()
 
             def _couple(ip: str, fqdn: str) -> tuple[str, str]:
@@ -533,6 +536,14 @@ class BuildScreen(ModalScreen[str | None]):
 
             t_ip, t_fqdn = _couple(vals["ip"], vals["fqdn"]) if target_touched else ("", "")
             d_ip, d_fqdn = _couple(vals["dc_ip"], vals["dc_fqdn"]) if dc_touched else ("", "")
+
+            rows = []
+            if target_touched:
+                rows.append(Host(ip=t_ip, hostname=t_fqdn, role=""))
+            if dc_touched:
+                rows.append(Host(ip=d_ip, hostname=d_fqdn, role="DC"))
+            if rows:
+                save_hosts(rows)
 
             set_current_host(
                 ip=t_ip if target_touched else None,

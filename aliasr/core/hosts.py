@@ -13,7 +13,15 @@ from aliasr.core.creds import _db
 
 @dataclass(frozen=True, slots=True)
 class Host:
-    """A host row, mirroring Exegol-history's `hosts` table."""
+    """A host row, mirroring Exegol-history's `hosts` table.
+
+    Exegol-history stores a single ``hostname`` field which it populates with
+    the FQDN; aliasr keeps that field (for 1-to-1 compatibility) and treats it
+    as the fqdn. The short hostname and domain are derived on demand by
+    splitting that FQDN -- so ``DC01.corp.local`` yields hostname ``DC01`` and
+    domain ``corp.local``, while a bare ``web01`` (e.g. a Linux host with no
+    domain) yields hostname ``web01`` and an empty domain.
+    """
 
     ip: str
     hostname: str
@@ -22,6 +30,16 @@ class Host:
 
     def __iter__(self) -> Iterator[str]:
         return iter([self.ip, self.hostname, self.role])
+
+    @property
+    def short_hostname(self) -> str:
+        """Leading label of the FQDN (the whole value when it has no domain)."""
+        return self.hostname.split(".", 1)[0]
+
+    @property
+    def domain(self) -> str:
+        """Domain portion of the FQDN (empty when the host has no domain part)."""
+        return self.hostname.split(".", 1)[1] if "." in self.hostname else ""
 
 
 # (ip, hostname) keys that NetExec supplied this process, captured when its
@@ -72,6 +90,44 @@ def load_hosts() -> list[Host]:
     :func:`_pull_nxc`), so aliasr starts up already carrying them.
     """
     return _pull_nxc(_db.read_hosts())
+
+
+def discovered_host_globals() -> dict[str, str]:
+    """Host globals discovered for the current engagement, as a flat mapping of
+    global name -> value (only the ones that have a value).
+
+    Sourced like the build screen's host autofill: exegol-history's current host
+    (profile.sh) is authoritative, falling back to the stored hosts -- which
+    include anything pulled from nxcdb -- for whatever it doesn't set. The first
+    stored host supplies the target ``ip``/``fqdn`` (plus the ``hostname``/
+    ``domain`` split out of its FQDN); a host tagged role="DC" supplies
+    ``dc_ip``/``dc_fqdn``. Used to seed both the build form and the globals grid
+    so a freshly-pulled target/DC shows up without having to build first.
+    """
+    from aliasr.core.exegol import current_host
+
+    out: dict[str, str] = {}
+    stored = load_hosts()
+    if stored:
+        target = stored[0]
+        if target.ip:
+            out["ip"] = target.ip
+        if target.hostname:
+            out["fqdn"] = target.hostname
+            if target.short_hostname:
+                out["hostname"] = target.short_hostname
+            if target.domain:
+                out["domain"] = target.domain
+        dc = next((h for h in stored if h.role == "DC"), None)
+        if dc:
+            if dc.ip:
+                out["dc_ip"] = dc.ip
+            if dc.hostname:
+                out["dc_fqdn"] = dc.hostname
+
+    # current_host() (profile.sh) wins wherever it has a value.
+    out.update({k: v for k, v in current_host().items() if v})
+    return out
 
 
 def save_hosts(hosts: Iterable[Host]) -> None:

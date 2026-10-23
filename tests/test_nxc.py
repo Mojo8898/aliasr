@@ -105,6 +105,9 @@ def nxc_home(tmp_path, monkeypatch):
         creds_mod._MEMO = None
         creds_mod._NXC_KEYS = None
         hosts_mod._NXC_KEYS = None
+        # launch_app now seeds + persists host globals; reset the globals cache
+        # and file too so one test's seeded globals don't leak into the next.
+        _reset_globals()
 
     _reset()
     yield ws
@@ -284,6 +287,49 @@ def test_read_hosts_maps_fqdn_and_dc(nxc_home):
     assert by_ip["10.0.0.5"].role == ""  # not a DC
 
 
+def _make_ldap_db(path, hosts=()):
+    """Write an ldap.db-shaped protocol DB. NetExec's ldap `hosts` table has no
+    `dc` column (unlike smb.db); `hosts` rows are (ip, hostname, domain)."""
+    conn = sqlite3.connect(str(path))
+    conn.executescript(
+        _USERS_DDL
+        + """
+        CREATE TABLE hosts (
+            id INTEGER NOT NULL, ip VARCHAR, hostname VARCHAR, domain VARCHAR,
+            os VARCHAR, signing_required BOOLEAN, channel_binding VARCHAR,
+            PRIMARY KEY (id)
+        );
+        """
+    )
+    conn.executemany(
+        "INSERT INTO hosts (ip, hostname, domain) VALUES (?,?,?)", hosts
+    )
+    conn.commit()
+    conn.close()
+
+
+def test_ldap_presence_marks_host_as_dc(nxc_home):
+    """NetExec often leaves smb.db's `dc` flag unset even for a real DC, but a
+    row in ldap.db (LDAP is a DC-only service in AD) is a dependable signal."""
+    _make_db(
+        nxc_home / "smb.db",
+        hosts=[("10.0.0.1", "DC01", "corp.local", "Server 2025", 0)],  # dc flag NOT set
+    )
+    _make_ldap_db(nxc_home / "ldap.db", hosts=[("10.0.0.1", "DC01", "corp.local")])
+
+    by_ip = {h.ip: h for h in nxc.read_hosts("default")}
+    assert by_ip["10.0.0.1"].role == "DC"
+    assert by_ip["10.0.0.1"].hostname == "DC01.corp.local"
+
+
+def test_non_ldap_host_without_dc_flag_is_not_dc(nxc_home):
+    """A host seen only over SMB with the dc flag unset stays a plain host."""
+    _make_db(nxc_home / "smb.db",
+             hosts=[("10.0.0.5", "WEB01", "corp.local", "Server 2016", 0)])
+    by_ip = {h.ip: h for h in nxc.read_hosts("default")}
+    assert by_ip["10.0.0.5"].role == ""
+
+
 def test_load_pulls_nxc_hosts_into_store(nxc_home):
     _make_db(nxc_home / "smb.db", hosts=[("10.0.0.1", "DC01", "corp.local", "", 1)])
     names = {h.hostname for h in load_hosts()}
@@ -437,8 +483,10 @@ async def test_copy_keys_remap_between_tabs(app, nxc_home, monkeypatch):
                             "ctrl+t": ("Copy Hostname", True)}
         await pilot.press("ctrl+r")
         await pilot.press("ctrl+t")
+        await pilot.press("ctrl+y")   # Copy Domain (split from the FQDN)
         await pilot.pause()
-        assert captured[-2:] == ["10.0.0.1", "DC01.corp.local"]
+        # Hostname copies the short name, Domain the rest of the FQDN.
+        assert captured[-3:] == ["10.0.0.1", "DC01", "corp.local"]
 
 
 # ---------- confirm-delete toggle & CLI clear confirmation ----------
@@ -663,6 +711,171 @@ async def test_build_autofills_stored_cred_when_no_current(app, nxc_home):
         assert build._values.get("password") == "pw"
 
 
+async def test_build_autofills_stored_host_when_no_current(app, nxc_home):
+    """With no current host, the stored host (e.g. one pulled from nxcdb)
+    pre-fills the host fields -- a DC fills dc_ip/dc_fqdn and, as the only host,
+    the target ip/fqdn too (parity with the credential fallback)."""
+    from pathlib import Path
+
+    from aliasr.tui.build_screen.build_screen import BuildScreen
+
+    exegol.clear_current_host()
+    creds_mod._db.write_hosts([Host("10.0.0.1", "dc01.corp.local", "DC")])
+    md = Path(next(c.path for c in app.cheats if c.path.endswith(".md")))
+
+    async with app.run_test(size=(160, 45)) as pilot:
+        await pilot.pause()
+        await app.push_screen(
+            BuildScreen("t", "nxc smb <ip> <fqdn> --dc-ip <dc_ip> --dc <dc_fqdn>", md)
+        )
+        await pilot.pause()
+        build = app.screen
+        assert build._values.get("ip") == "10.0.0.1"
+        assert build._values.get("fqdn") == "dc01.corp.local"
+        assert build._values.get("dc_ip") == "10.0.0.1"
+        assert build._values.get("dc_fqdn") == "dc01.corp.local"
+
+
+def _reset_globals():
+    """Reset the globals module cache + on-disk file to defaults (empty)."""
+    from aliasr.core import globals as g
+    from aliasr.core.config import GLOBALS_FILE
+
+    g._STATE_RAW = {}
+    g._LOADED = False
+    g._globals_bootstrapped = False
+    g._LAST_SERIALIZED = None
+    try:
+        GLOBALS_FILE.unlink()
+    except OSError:
+        pass
+
+
+def test_launch_seeds_host_globals_and_persists(nxc_home):
+    """launch_app seeds the empty host globals from the pulled host, both into
+    the in-memory grid state and persisted to globals.json."""
+    import json
+
+    from aliasr.core.bootstrap import launch_app
+    from aliasr.core.config import GLOBALS_FILE
+
+    _reset_globals()
+    _make_db(nxc_home / "smb.db", hosts=[("10.0.0.1", "DC01", "corp.local", "", 1)])
+
+    app = launch_app(execute=False, pane=None, previous=False)
+
+    # In-memory globals (what the grid shows) are seeded.
+    assert app.globals.get("ip") == "10.0.0.1"
+    assert app.globals.get("fqdn") == "DC01.corp.local"
+    assert app.globals.get("hostname") == "DC01"
+    assert app.globals.get("domain") == "corp.local"
+    assert app.globals.get("dc_ip") == "10.0.0.1"
+    assert app.globals.get("dc_fqdn") == "DC01.corp.local"
+
+    # ...and they are persisted: globals.json on disk now carries them.
+    on_disk = json.loads(GLOBALS_FILE.read_text())
+    assert on_disk.get("ip") == ["10.0.0.1"]
+    assert on_disk.get("dc_fqdn") == ["DC01.corp.local"]
+    assert on_disk.get("hostname") == ["DC01"]
+
+
+def test_launch_seeds_lhost_from_interface(nxc_home, monkeypatch):
+    """lhost is auto-populated from the local interface (tun0/eth0) and, being a
+    volatile local address, refreshed on each launch even if already set."""
+    import json
+
+    from aliasr.core import net
+    from aliasr.core.bootstrap import launch_app
+    from aliasr.core.config import GLOBALS_FILE
+    from aliasr.core.globals import save_global
+
+    _reset_globals()
+    monkeypatch.setattr(net, "local_lhost", lambda *a, **k: "10.10.14.9")
+    save_global("lhost", "1.2.3.4")  # a stale value from a previous session
+
+    app = launch_app(execute=False, pane=None, previous=False)
+    assert app.globals.get("lhost") == "10.10.14.9"  # refreshed to current tun0
+
+    on_disk = json.loads(GLOBALS_FILE.read_text())
+    assert on_disk.get("lhost", [""])[0] == "10.10.14.9"  # persisted
+
+
+def test_launch_keeps_lhost_when_no_interface(nxc_home, monkeypatch):
+    """With no tun0/eth0 present, an existing lhost is left untouched."""
+    from aliasr.core import net
+    from aliasr.core.bootstrap import launch_app
+    from aliasr.core.globals import save_global
+
+    _reset_globals()
+    monkeypatch.setattr(net, "local_lhost", lambda *a, **k: "")
+    save_global("lhost", "192.168.1.5")
+
+    app = launch_app(execute=False, pane=None, previous=False)
+    assert app.globals.get("lhost") == "192.168.1.5"
+
+
+def test_launch_does_not_overwrite_user_set_globals(nxc_home):
+    """A host global the user already set is never clobbered by the seed."""
+    from aliasr.core.bootstrap import launch_app
+    from aliasr.core.globals import save_global
+
+    _reset_globals()
+    _make_db(nxc_home / "smb.db", hosts=[("10.0.0.1", "DC01", "corp.local", "", 1)])
+    save_global("ip", "10.9.9.9")  # user's own value
+
+    app = launch_app(execute=False, pane=None, previous=False)
+    assert app.globals.get("ip") == "10.9.9.9"  # preserved
+    assert app.globals.get("dc_fqdn") == "DC01.corp.local"  # still seeded
+
+
+async def test_build_autofills_short_hostname_and_domain(app, nxc_home):
+    """<hostname>/<domain> fill from the stored host's FQDN split: the first
+    label is the hostname, the remainder the domain."""
+    from pathlib import Path
+
+    from aliasr.tui.build_screen.build_screen import BuildScreen
+
+    exegol.clear_current_host()
+    exegol.clear_current_credential()
+    creds_mod._db.write_hosts([Host("10.0.0.1", "dc01.corp.local", "DC")])
+    md = Path(next(c.path for c in app.cheats if c.path.endswith(".md")))
+
+    async with app.run_test(size=(160, 45)) as pilot:
+        await pilot.pause()
+        await app.push_screen(BuildScreen("t", "echo <hostname> <domain> <fqdn>", md))
+        await pilot.pause()
+        build = app.screen
+        assert build._values.get("hostname") == "dc01"
+        assert build._values.get("fqdn") == "dc01.corp.local"
+        assert build._values.get("domain") == "corp.local"
+
+
+async def test_build_current_host_wins_over_stored_fallback(app, nxc_home):
+    """exegol-history's current host stays authoritative; the stored-host
+    fallback only fills the fields current_host() leaves empty."""
+    from pathlib import Path
+
+    from aliasr.tui.build_screen.build_screen import BuildScreen
+
+    exegol.set_current_host(ip="10.9.9.9", fqdn="target.corp.local")
+    creds_mod._db.write_hosts([Host("10.0.0.1", "dc01.corp.local", "DC")])
+    md = Path(next(c.path for c in app.cheats if c.path.endswith(".md")))
+
+    async with app.run_test(size=(160, 45)) as pilot:
+        await pilot.pause()
+        await app.push_screen(
+            BuildScreen("t", "nxc smb <ip> <fqdn> --dc-ip <dc_ip> --dc <dc_fqdn>", md)
+        )
+        await pilot.pause()
+        build = app.screen
+        # current_host wins for the target...
+        assert build._values.get("ip") == "10.9.9.9"
+        assert build._values.get("fqdn") == "target.corp.local"
+        # ...while the DC fields it did not set fall back to the stored DC.
+        assert build._values.get("dc_ip") == "10.0.0.1"
+        assert build._values.get("dc_fqdn") == "dc01.corp.local"
+
+
 # ---------- building exports the whole credential/host ----------
 
 
@@ -707,3 +920,31 @@ async def test_build_exports_whole_host(app, nxc_home):
         await pilot.pause()
 
     assert exegol.current_host().get("fqdn") == "dc01.corp.local"
+
+
+async def test_build_with_dc_fqdn_only_does_not_duplicate_host(app, nxc_home):
+    """A build that supplies only <dc_fqdn> (e.g. bloodyAD) must update the
+    existing host in place, not insert a second IP-less row with the same FQDN.
+    The missing IP is recovered from the stored host before saving."""
+    from pathlib import Path
+
+    from aliasr.tui.build_screen.build_screen import BuildScreen
+
+    creds_mod._db.write_hosts([Host("10.129.77.102", "dc01.corp.local", "DC")])
+    exegol.clear_current_host()
+    md = Path(next(c.path for c in app.cheats if c.path.endswith(".md")))
+
+    async with app.run_test(size=(160, 45)) as pilot:
+        await pilot.pause()
+        await app.push_screen(
+            BuildScreen("t", "bloodyAD -d <domain> --host <dc_fqdn> get object", md)
+        )
+        await pilot.pause()
+        app.screen.set_focus(None)
+        app.screen.action_submit()
+        await pilot.pause()
+
+    rows = load_hosts()
+    assert len(rows) == 1  # updated in place, not duplicated
+    assert rows[0].ip == "10.129.77.102"  # IP preserved, not blanked
+    assert rows[0].hostname == "dc01.corp.local"

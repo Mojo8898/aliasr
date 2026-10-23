@@ -17,8 +17,8 @@ auto_krb = false
 
 [globals.defaults]
 lhost = [""]
-lport = [""]
-lwport = ["8000"]  # Yes I made this up. Stands for "local web port" and is where you serve your simple http server
+lport = ["9001"]
+lwport = ["8000"]  # Stands for "local web port" and is where you serve your simple http server
 ip = [""]
 hostname = [""]
 domain = [""]
