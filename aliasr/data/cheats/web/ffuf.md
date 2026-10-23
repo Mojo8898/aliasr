@@ -38,7 +38,3 @@ ffuf -u '<url>/indexFUZZ' -w <wordlist|/usr/share/seclists/Discovery/Web-Content
 /usr/share/seclists/Usernames/xato-net-10-million-usernames.txt
 /home/kali/repos/statistically-likely-usernames/jsmith2.txt
 /home/kali/repos/statistically-likely-usernames/jsmith.txt
-
-- proto
-http
-https

