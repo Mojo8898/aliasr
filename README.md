@@ -16,18 +16,18 @@ Some of the largest improvements Aliasr implements include:
 - [x] Cheat variations that allow for different authentication methods to be built into a single parameter.
 - [x] Automatic parameter population based on history and other sources.
 - [x] Exegol-history (SQLite) integration for credential and host management.
-- [x] NetExec (`nxcdb`) integration — credentials and hosts are pulled in on startup and kept in sync.
+- [x] NetExec (`nxcdb`) integration - credentials and hosts are pulled in on startup and kept in sync.
 - [x] A built-in `scan` that fingerprints a target with NetExec and auto-fills your globals.
 
 ## Documentation
 
 Full documentation lives in the **[wiki](https://github.com/Mojo8898/aliasr/wiki)**, which serves as a table of contents for the detailed guides:
 
-- [Commands](https://github.com/Mojo8898/aliasr/wiki/Commands) — the `audit`, `send`, `scan`, `list`, and `clear` subcommands
-- [Cheats](https://github.com/Mojo8898/aliasr/wiki/Cheats) — the cheat markdown format, placeholders, and tags
-- [Variations](https://github.com/Mojo8898/aliasr/wiki/Variations) — per-parameter command variations
-- [Configuration](https://github.com/Mojo8898/aliasr/wiki/Configuration) — the config file, precedence, options, and project setups
-- [Credentials & Hosts](https://github.com/Mojo8898/aliasr/wiki/Credentials-and-Hosts) — Exegol-history and NetExec sync, and the in-app menu
+- [Commands](https://github.com/Mojo8898/aliasr/wiki/01-%E2%80%90-Commands) - the `audit`, `send`, `scan`, `list`, and `clear` subcommands
+- [Cheats](https://github.com/Mojo8898/aliasr/wiki/02-%E2%80%90-Cheats) - the cheat markdown format, placeholders, and tags
+- [Variations](https://github.com/Mojo8898/aliasr/wiki/03-%E2%80%90-Variations) - per-parameter command variations
+- [Configuration](https://github.com/Mojo8898/aliasr/wiki/04-%E2%80%90-Configuration) - the config file, precedence, options, and project setups
+- [Credentials & Hosts](https://github.com/Mojo8898/aliasr/wiki/05-%E2%80%90-Credentials-and-Hosts) - Exegol-history and NetExec sync, and the in-app menu
 
 ## Install
 
@@ -84,21 +84,21 @@ options:
   -e, --exec            Execute the command immediately
 ```
 
-Run bare `aliasr` (optionally `aliasr -e` to execute on selection) to open the TUI, and see the [Commands](https://github.com/Mojo8898/aliasr/wiki/Commands) guide for the subcommands. **Note:** *Almost* all hotkeys can be found in the footer of the application when running.
+Run bare `aliasr` (optionally `aliasr -e` to execute on selection) to open the TUI, and see the [Commands](https://github.com/Mojo8898/aliasr/wiki/01-%E2%80%90-Commands) guide for the subcommands. **Note:** *Almost* all hotkeys can be found in the footer of the application when running.
 
 ## Configuration
 
-Aliasr allows you to configure pretty much everything. Refer to the built-in `config.toml` found [here](./aliasr/data/config.toml) to see what configuration options are available, and the [Configuration](https://github.com/Mojo8898/aliasr/wiki/Configuration) guide for a detailed walkthrough.
+Aliasr allows you to configure pretty much everything. Refer to the built-in `config.toml` found [here](./aliasr/data/config.toml) to see what configuration options are available, and the [Configuration](https://github.com/Mojo8898/aliasr/wiki/04-%E2%80%90-Configuration) guide for a detailed walkthrough.
 
 Edit `~/.aliasr/config.toml` (created automatically on first run) to override any defaults; your changes are merged at runtime.
 
 ## Cheats
 
-A detailed reference guide on writing cheats can be found in the [Cheats](https://github.com/Mojo8898/aliasr/wiki/Cheats) guide.
+A detailed reference guide on writing cheats can be found in the [Cheats](https://github.com/Mojo8898/aliasr/wiki/02-%E2%80%90-Cheats) guide.
 
 ## Contributing
 
-Contributions are welcome. If you're contributing cheats, please follow the format and tag conventions in the [Cheats](https://github.com/Mojo8898/aliasr/wiki/Cheats) guide. Feel free to open an issue if you want to add other features.
+Contributions are welcome. If you're contributing cheats, please follow the format and tag conventions in the [Cheats](https://github.com/Mojo8898/aliasr/wiki/02-%E2%80%90-Cheats) guide. Feel free to open an issue if you want to add other features.
 
 Detailed development setup instructions can be found in the [official Textual documentation](https://textual.textualize.io/guide/devtools/).
 
