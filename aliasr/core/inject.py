@@ -37,12 +37,21 @@ def _tmux_send_keys(pane: str, cmd: str, execute: bool) -> bool:
         return False
 
 
-def _tty_inject(payload: str) -> None:
-    """Inject characters directly into the current TTY."""
+def _tty_inject(payload: str) -> bool:
+    """Inject characters directly into the current TTY.
+
+    Returns True if the whole payload was pushed into the line buffer, False if
+    it could not be (no controlling TTY, or TIOCSTI disabled). Callers rely on
+    this to know whether the shell will actually run what we handed it.
+    """
     import fcntl
     import termios
 
-    with open("/dev/tty", "rb+", buffering=0) as tty:
+    try:
+        tty = open("/dev/tty", "rb+", buffering=0)
+    except OSError:
+        return False
+    with tty:
         fd = tty.fileno()
         old = termios.tcgetattr(fd)
         new = termios.tcgetattr(fd)
@@ -63,8 +72,10 @@ echo "dev.tty.legacy_tiocsti=1" >> /etc/sysctl.conf
 
 More details: https://github.com/Orange-Cyberdefense/arsenal/issues/77
 """)
+            return False
         finally:
             termios.tcsetattr(fd, termios.TCSADRAIN, old)
+    return True
 
 
 # ---------- Public API ----------
@@ -139,12 +150,15 @@ def _write_cmd_tempfile(cmd: str) -> str:
     return path
 
 
-def _deliver_inline(cmd: str, using_tmux: bool, execute: bool, pane_index: str | None) -> None:
-    """Type a (short) command at the prompt, or send it to a target tmux pane."""
+def _deliver_inline(cmd: str, using_tmux: bool, execute: bool, pane_index: str | None) -> bool:
+    """Type a (short) command at the prompt, or send it to a target tmux pane.
+
+    Returns True if the command was delivered, False if it could not be.
+    """
     if using_tmux and pane_index and pane_index.isdigit():
         if _tmux_send_keys(pane_index, cmd, execute):
-            return
-    _tty_inject(cmd + ("\n" if execute else ""))
+            return True
+    return _tty_inject(cmd + ("\n" if execute else ""))
 
 
 _KNOWN_SHELLS = ("zsh", "bash", "fish", "dash", "ksh", "sh")
@@ -160,7 +174,7 @@ def _parent_shell() -> str:
     try:
         with open(f"/proc/{os.getppid()}/comm", encoding="utf-8") as f:
             comm = f.read().strip().lstrip("-")
-        if any(s in comm for s in _KNOWN_SHELLS):
+        if comm in _KNOWN_SHELLS:
             return comm
     except OSError:
         pass
@@ -176,12 +190,18 @@ def _inject_long(cmd: str, using_tmux: bool, execute: bool, pane_index: str | No
     command that way: we write it to a temp file and inject only a tiny,
     race-free bootstrap that the shell runs itself.
 
-    * execute -> ``source <file>`` runs it in the current shell (exports
-      persist; the announce banners still show each step).
+    * execute -> ``. <file>`` (POSIX dot) runs it in the current shell (exports
+      persist; the announce banners still show each step). ``source`` is not
+      portable -- dash/ksh/sh would reject it.
     * review (zsh) -> ``print -z`` loads the full command into zsh's next edit
       buffer, so it appears at the prompt ready to review/edit/run -- no paste.
     * review (other shells) -> copy to the clipboard (no portable way to preload
       the line editor), falling back to a saved file.
+
+    The temp file's ``rm`` lives inside the injected bootstrap, which only runs
+    if the bootstrap was actually delivered. When delivery fails (no TTY /
+    TIOCSTI disabled) we clean the file up here and return non-zero, so we never
+    leak a 0600 file holding the full command nor report a false success.
     """
     import shlex
 
@@ -190,14 +210,18 @@ def _inject_long(cmd: str, using_tmux: bool, execute: bool, pane_index: str | No
     shell = _parent_shell()
 
     if execute:
-        _deliver_inline(f"source {q}; rm -f {q}", using_tmux, True, pane_index)
-        return 0
+        if _deliver_inline(f". {q}; rm -f {q}", using_tmux, True, pane_index):
+            return 0
+        os.unlink(path)
+        return 1
 
-    if "zsh" in shell:
+    if shell == "zsh":
         # The bootstrap runs (hence execute=True); print -z then pops the full
         # command into the next prompt's editable buffer.
-        _deliver_inline(f'print -z -- "$(< {q})"; rm -f {q}', using_tmux, True, pane_index)
-        return 0
+        if _deliver_inline(f'print -z -- "$(< {q})"; rm -f {q}', using_tmux, True, pane_index):
+            return 0
+        os.unlink(path)
+        return 1
 
     try:
         copy_to_clipboard(cmd)
@@ -210,7 +234,7 @@ def _inject_long(cmd: str, using_tmux: bool, execute: bool, pane_index: str | No
     except Exception:
         print(
             "aliasr: command too long to type and no clipboard backend available; "
-            f"saved to {path} — run it with: source {path}",
+            f"saved to {path} — run it with: . {path}",
             file=sys.stderr,
         )
     return 0
