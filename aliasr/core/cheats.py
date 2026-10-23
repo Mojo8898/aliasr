@@ -16,7 +16,7 @@ class Cheat:
     cmd: str
     path: str
     cheat_tags: tuple[str, ...] = ()
-    cmd_tags: tuple[str, ...] = ()
+    build_tags: tuple[str, ...] = ()
 
 
 _H1_RE = re.compile(r"^\s*#\s+(.+?)\s*$")
@@ -26,6 +26,11 @@ _ID_SANITIZE_RE = re.compile(r"\W+")
 _TAG_RE = re.compile(r"#([\w/-]+)")
 _PH_RE = re.compile(r"<([^>\s]+)>")
 _PARAM_HEADER_RE = re.compile(r"^\s*-\s*([A-Za-z0-9_:-]+)\s*$")
+
+# Bump when the pickled cache layout or the Cheat schema changes (e.g. a renamed
+# field), so an old cache is rebuilt even though the source files are unchanged
+# — the file-mtime signature alone wouldn't catch a code-side change.
+_CACHE_VERSION = 2
 
 _ALL: list[Cheat] = []
 _TAGS: list[str] = []
@@ -62,7 +67,7 @@ def _parse_markdown(
     # State tracking
     cheat_tags: set[str] = set()
     cmd_title = None
-    cmd_tags: set[str] = set()
+    build_tags: set[str] = set()
     in_fence = False
     fence = ""
     buf: list[str] = []
@@ -76,20 +81,20 @@ def _parse_markdown(
             if _H1_RE.match(line):
                 cheat_tags.clear()
                 cmd_title = None
-                cmd_tags.clear()
+                build_tags.clear()
                 continue
 
             # Check for H2 header (command title)
             if m := _H2_RE.match(line):
                 cmd_title = m.group(1).strip()
-                cmd_tags.clear()
+                build_tags.clear()
                 continue
 
             # Process tags
             s = line.strip()
             if s.startswith("#") and not s.startswith("##"):
                 for tag in _TAG_RE.findall(s):
-                    (cmd_tags if cmd_title else cheat_tags).add(tag.lower())
+                    (build_tags if cmd_title else cheat_tags).add(tag.lower())
                 continue
 
             # Start of code fence
@@ -126,11 +131,11 @@ def _parse_markdown(
                             cmd=cmd,
                             path=str(path),
                             cheat_tags=tuple(sorted(cheat_tags)),
-                            cmd_tags=tuple(sorted(cmd_tags)),
+                            build_tags=tuple(sorted(build_tags)),
                         )
                     )
                 cmd_title = None
-                cmd_tags.clear()
+                build_tags.clear()
                 in_fence = False
                 fence = ""
                 buf.clear()
@@ -229,6 +234,7 @@ def _save_cache(cache_path: Path, signature: tuple[tuple[str, int, int], ...]) -
             tag_to_indices[tag] = [cheat_to_idx[id(ch)] for ch in cheats]
 
     payload = {
+        "version": _CACHE_VERSION,  # Schema/layout version (see _CACHE_VERSION)
         "signature": signature,  # Corpus fingerprint for staleness detection
         "all": _ALL,  # Pickle Cheat objects directly - NO asdict()
         "tags": _TAGS,
@@ -270,7 +276,11 @@ def load_cheats() -> None:
             # Unreadable/corrupt/old-format cache: fall through to a rebuild.
             blob = None
 
-        if blob is not None and blob.get("signature") == sig:
+        if (
+            blob is not None
+            and blob.get("version") == _CACHE_VERSION
+            and blob.get("signature") == sig
+        ):
             # Direct assignment - no conversion needed
             _ALL = blob["all"]
             _TAGS = blob["tags"]
@@ -290,11 +300,16 @@ def load_cheats() -> None:
     _save_cache(cp, sig)
 
 
-def clear_cache() -> None:
-    """Clear the cheats cache, forcing rebuild on next load."""
+def clear_cache() -> bool:
+    """Clear the cheats cache, forcing rebuild on next load.
+
+    Returns True if a cache file was present and removed, else False.
+    """
     cp = _cache_path()
     if cp.exists():
         cp.unlink()
+        return True
+    return False
 
 
 def build_tag_index() -> tuple[dict[str, list[Cheat]], list[str]]:

@@ -147,7 +147,7 @@ class CheatTags(Tabs):
 
         for cheat in all_cheats:
             # Check if cheat matches target and OS filters
-            cheat_tags = set(cheat.cheat_tags) | set(cheat.cmd_tags)
+            cheat_tags = set(cheat.cheat_tags) | set(cheat.build_tags)
 
             # Check target filter
             if self._target_filter:
@@ -318,7 +318,7 @@ class MainSearch(Vertical):
 
         for cheat in all_cheats:
             # Check if cheat matches target and OS filters
-            cheat_tags = set(cheat.cheat_tags) | set(cheat.cmd_tags)
+            cheat_tags = set(cheat.cheat_tags) | set(cheat.build_tags)
 
             # Check target filter
             if target_filter:

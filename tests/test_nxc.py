@@ -463,6 +463,19 @@ async def test_confirm_delete_can_be_disabled(app, nxc_home, monkeypatch):
         assert "admin" not in {c.username for c in screen._rows["creds"]}
 
 
+def test_clear_flags_reports_cleared_vs_unchanged(nxc_home, capsys):
+    from aliasr.core.bootstrap import clear_flags
+
+    # Empty store -> "unchanged".
+    clear_flags(cache=False, globals=False, creds=True)
+    assert "Credentials unchanged" in capsys.readouterr().out
+
+    # Populated store -> "cleared successfully!".
+    creds_mod._db.write([Credential("admin", "pw", "", "corp")])
+    clear_flags(cache=False, globals=False, creds=True)
+    assert "Credentials cleared successfully!" in capsys.readouterr().out
+
+
 def test_confirm_clear_allows_nondestructive_and_yes():
     from aliasr.core.bootstrap import confirm_clear
 
@@ -473,6 +486,9 @@ def test_confirm_clear_allows_nondestructive_and_yes():
 
 def test_confirm_clear_prompts_on_destructive(monkeypatch):
     from aliasr.core import bootstrap
+
+    # Force "there is something to clear" so we exercise the prompt itself.
+    monkeypatch.setattr(bootstrap, "_has_clearable_data", lambda _cmd: True)
 
     monkeypatch.setattr("builtins.input", lambda *_: "n")
     assert bootstrap.confirm_clear("creds") is False   # declined
@@ -485,3 +501,15 @@ def test_confirm_clear_prompts_on_destructive(monkeypatch):
 
     monkeypatch.setattr("builtins.input", _eof)
     assert bootstrap.confirm_clear("hosts") is False    # non-interactive aborts
+
+
+def test_confirm_clear_skips_prompt_when_empty(monkeypatch):
+    from aliasr.core import bootstrap
+
+    monkeypatch.setattr(bootstrap, "_has_clearable_data", lambda _cmd: False)
+
+    def _boom(*_):
+        raise AssertionError("should not prompt when there is nothing to clear")
+
+    monkeypatch.setattr("builtins.input", _boom)
+    assert bootstrap.confirm_clear("creds") is True  # proceeds without asking

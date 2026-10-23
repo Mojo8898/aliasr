@@ -19,14 +19,27 @@ def _parser() -> argparse.ArgumentParser:
 
     # ---------- Audit ----------
 
-    audit = sub.add_parser("audit", help="Audit cheatsheets and configs")
-    audit.add_argument(
-        "-l", "--list-all", action="store_true", help="List individual cheats"
+    audit = sub.add_parser(
+        "audit",
+        help="Audit cheatsheets and configs (no flag = brief summary of all)",
     )
-    audit_sub = audit.add_subparsers(dest="audit_cmd", help="Audit specific components")
-    audit_sub.add_parser("refs", help="Audit parameter references in cheatsheets")
-    audit_sub.add_parser("vars", help="Audit variations (variations.toml)")
-    audit_sub.add_parser("conf", help="Audit configuration (config.toml)")
+    audit.add_argument("-c", "--cheats", action="store_true", help="Audit cheatsheets")
+    audit.add_argument(
+        "-r", "--references", action="store_true", help="Audit parameter references"
+    )
+    audit.add_argument(
+        "-v", "--variations", action="store_true", help="Audit variations (variations.toml)"
+    )
+    audit.add_argument(
+        "--config", action="store_true", help="Audit configuration (config.toml)"
+    )
+    audit.add_argument(
+        "-a", "--all", action="store_true", help="Run every audit section in full"
+    )
+    audit.add_argument(
+        "-l", "--list-all", action="store_true",
+        help="With --cheats, list every individual cheat",
+    )
 
     # ---------- Send ----------
 
@@ -165,7 +178,14 @@ def main() -> int:
     if args.cmd == "audit":
         from aliasr.audit import run_audit_cli
 
-        return run_audit_cli(args.list_all, args.audit_cmd)
+        return run_audit_cli(
+            cheats=args.cheats,
+            references=args.references,
+            variations=args.variations,
+            config=args.config,
+            run_all=args.all,
+            list_all=args.list_all,
+        )
 
     if args.cmd == "list":
         from aliasr.core.list import run_list

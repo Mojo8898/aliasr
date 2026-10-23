@@ -277,8 +277,12 @@ def get_history(key: str) -> list[str]:
     return _STATE_RAW.get(normalize_key(key), []) or []
 
 
-def clear_globals() -> None:
-    """Create default globals file with configured defaults."""
+def clear_globals() -> bool:
+    """Reset the globals file to the configured defaults.
+
+    Returns True if that changed the file (there was user data to clear), False
+    if it already held exactly the default-seeded content.
+    """
     global _STATE_RAW, _LAST_SERIALIZED, _LOADED
     seed: dict[str, Any] = {}
     # Include environment KRB5CCNAME if present
@@ -294,7 +298,16 @@ def clear_globals() -> None:
 
     canon = _canonicalize(seed)
     text = _serialize(canon)
+
+    changed = True
+    try:
+        if GLOBALS_FILE.exists() and GLOBALS_FILE.read_text(encoding="utf-8") == text:
+            changed = False
+    except OSError:
+        pass
+
     _atomic_write_text(GLOBALS_FILE, text)
     _STATE_RAW = canon
     _LAST_SERIALIZED = text
     _LOADED = True
+    return changed

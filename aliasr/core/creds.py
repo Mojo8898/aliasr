@@ -481,7 +481,12 @@ def save_creds(creds: Iterable[Credential]) -> None:
     Thread(target=_db.write, args=(unique_creds,), daemon=False).start()
 
 
-def clear_creds() -> None:
+def has_stored_creds() -> bool:
+    """Whether the shared store currently holds any credential (no NetExec pull)."""
+    return bool(_db.read())
+
+
+def clear_creds() -> bool:
     """Clear all credentials from storage and unset the current credential in
     exegol-history's profile.sh, so nothing lingers to autofill from.
 
@@ -490,21 +495,28 @@ def clear_creds() -> None:
     the config forbids that bulk deletion, leaving NetExec untouched. Either
     way the NetExec keys are forgotten so the wipe isn't later misread as a
     batch of individual deletions on the next save.
+
+    Returns True if anything was actually removed (aliasr store or, when not
+    blocked, NetExec), else False.
     """
     global _MEMO, _NXC_KEYS
+    from aliasr.core.config import NXC_BLOCK_BULK_DELETE
+
+    changed = bool(_db.read())
     _MEMO = []
     _NXC_KEYS = set()
     _db.clear()
-
-    from aliasr.core.config import NXC_BLOCK_BULK_DELETE
 
     if not NXC_BLOCK_BULK_DELETE:
         try:
             from aliasr.core import nxc
 
+            if not changed and nxc.read_creds():
+                changed = True
             nxc.clear_creds()
         except Exception:
             pass
     from aliasr.core.exegol import clear_current_credential
 
     clear_current_credential()
+    return changed

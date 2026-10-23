@@ -114,26 +114,36 @@ def reconcile_hosts(hosts: Iterable[Host]) -> None:
     _db.reconcile_hosts(rows)
 
 
-def clear_hosts() -> None:
+def has_stored_hosts() -> bool:
+    """Whether the shared store currently holds any host (no NetExec pull)."""
+    return bool(_db.read_hosts())
+
+
+def clear_hosts() -> bool:
     """Clear all hosts from the shared database and unset the current host in
     exegol-history's profile.sh, so nothing lingers to autofill from.
 
     By default this also empties NetExec's hosts (a bulk wipe); setting
-    ``[nxc] block_bulk_delete`` leaves NetExec untouched.
+    ``[nxc] block_bulk_delete`` leaves NetExec untouched. Returns True if
+    anything was actually removed, else False.
     """
     global _NXC_KEYS
+    from aliasr.core.config import NXC_BLOCK_BULK_DELETE
+
+    changed = bool(_db.read_hosts())
     _NXC_KEYS = set()
     _db.clear_hosts()
     from aliasr.core.exegol import clear_current_host
 
     clear_current_host()
 
-    from aliasr.core.config import NXC_BLOCK_BULK_DELETE
-
     if not NXC_BLOCK_BULK_DELETE:
         try:
             from aliasr.core import nxc
 
+            if not changed and nxc.read_hosts():
+                changed = True
             nxc.clear_hosts()
         except Exception:
             pass
+    return changed

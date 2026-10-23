@@ -449,7 +449,7 @@ class MainScreen(Screen[None]):
                         cheat.title,
                         modified_cmd,
                         Path(cheat.path),
-                        cheat.cmd_tags,
+                        cheat.build_tags,
                         callback=_build_done,
                     ),
                     _build_done,
@@ -465,7 +465,7 @@ class MainScreen(Screen[None]):
                     cheat.title,
                     cheat.cmd,
                     Path(cheat.path),
-                    cheat.cmd_tags,
+                    cheat.build_tags,
                     callback=_build_done,
                 ),
                 _build_done,
@@ -510,7 +510,7 @@ class MainScreen(Screen[None]):
         if target_filter or os_filter:
             filtered_pool = []
             for cheat in pool:
-                cheat_tags = set(cheat.cheat_tags) | set(cheat.cmd_tags)
+                cheat_tags = set(cheat.cheat_tags) | set(cheat.build_tags)
 
                 # Check target filter
                 if target_filter:

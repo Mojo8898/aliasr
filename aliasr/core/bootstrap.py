@@ -96,6 +96,10 @@ def confirm_clear(clear_cmd: str, assume_yes: bool = False) -> bool:
     if assume_yes or clear_cmd not in ("creds", "hosts", "all"):
         return True
 
+    # Nothing to delete -> don't bother asking (the clear reports "unchanged").
+    if not _has_clearable_data(clear_cmd):
+        return True
+
     from aliasr.core.config import NXC_BLOCK_BULK_DELETE
 
     msg = "Are you sure?"
@@ -108,49 +112,88 @@ def confirm_clear(clear_cmd: str, assume_yes: bool = False) -> bool:
     return answer in ("y", "yes")
 
 
+def _has_clearable_data(clear_cmd: str) -> bool:
+    """Whether a destructive clear would actually remove credentials/hosts.
+
+    Considers the aliasr store and, unless blocked, NetExec. Cache/globals are
+    not counted — they clear without a prompt regardless.
+    """
+    from aliasr.core.config import NXC_BLOCK_BULK_DELETE
+    from aliasr.core.creds import has_stored_creds
+    from aliasr.core.hosts import has_stored_hosts
+
+    want_creds = clear_cmd in ("creds", "all")
+    want_hosts = clear_cmd in ("hosts", "all")
+
+    if want_creds and has_stored_creds():
+        return True
+    if want_hosts and has_stored_hosts():
+        return True
+    if not NXC_BLOCK_BULK_DELETE:
+        try:
+            from aliasr.core import nxc
+
+            if want_creds and nxc.read_creds():
+                return True
+            if want_hosts and nxc.read_hosts():
+                return True
+        except Exception:
+            pass
+    return False
+
+
 def clear_flags(cache: bool, globals: bool, creds: bool, hosts: bool = False) -> bool:
-    """Clear selected stores."""
+    """Clear selected stores, reporting whether each actually changed.
+
+    Each clear returns True when it removed something; the printed line reflects
+    that ("... cleared successfully!" vs "... unchanged").
+    """
     tasks: list[tuple[str, callable]] = []
 
     if cache:
         from aliasr.core.cheats import clear_cache
 
-        tasks.append(("Cache cleared successfully!", clear_cache))
+        tasks.append(("Cache", clear_cache))
 
     if globals:
         from aliasr.core.globals import clear_globals
 
-        tasks.append(("Globals cleared successfully!", clear_globals))
+        tasks.append(("Globals", clear_globals))
 
     if creds:
         from aliasr.core.creds import clear_creds
 
-        tasks.append(("Credentials cleared successfully!", clear_creds))
+        tasks.append(("Credentials", clear_creds))
 
     if hosts:
         from aliasr.core.hosts import clear_hosts
 
-        tasks.append(("Hosts cleared successfully!", clear_hosts))
+        tasks.append(("Hosts", clear_hosts))
 
     if not tasks:
         return False
 
+    results: dict[str, bool | None] = {}
     if len(tasks) == 1:
-        msg, fn = tasks[0]
+        name, fn = tasks[0]
         try:
-            fn()
-            print(msg)
+            results[name] = bool(fn())
         except Exception as e:
             print(f"Warning: {e}")
-        return True
-
-    with ThreadPoolExecutor(max_workers=2) as ex:
-        futs = [ex.submit(fn) for _, fn in tasks]
-        for f in futs:
+            results[name] = None
+    else:
+        with ThreadPoolExecutor(max_workers=2) as ex:
+            futs = {name: ex.submit(fn) for name, fn in tasks}
+        for name, fut in futs.items():
             try:
-                f.result()
+                results[name] = bool(fut.result())
             except Exception as e:
                 print(f"Warning: {e}")
-    for msg, _ in tasks:
-        print(msg)
+                results[name] = None
+
+    for name, _ in tasks:
+        changed = results.get(name)
+        if changed is None:
+            continue  # a warning was already printed
+        print(f"{name} cleared successfully!" if changed else f"{name} unchanged")
     return True

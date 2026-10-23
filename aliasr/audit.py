@@ -211,12 +211,12 @@ def audit_cheats(list_all: bool = False) -> int:
             )
             tbl.add_column("ID", style="cyan", no_wrap=True)
             tbl.add_column("Title", style="yellow")
-            tbl.add_column("Cmd Tags", style="magenta", no_wrap=True)
+            tbl.add_column("Build Tags", style="magenta", no_wrap=True)
             tbl.add_column("Path", style="dim")
 
             for c in sorted(untagged, key=lambda x: (x.id, str(x.path))):
-                cmd_tags_str = ", ".join(sorted(c.cmd_tags)) if c.cmd_tags else ""
-                tbl.add_row(c.id, c.title, cmd_tags_str, str(c.path))
+                build_tags_str = ", ".join(sorted(c.build_tags)) if c.build_tags else ""
+                tbl.add_row(c.id, c.title, build_tags_str, str(c.path))
 
             console.print(tbl)
             console.print()
@@ -236,12 +236,12 @@ def audit_cheats(list_all: bool = False) -> int:
             )
             tbl.add_column("ID", style="cyan", no_wrap=True)
             tbl.add_column("Title", style="yellow")
-            tbl.add_column("Cmd Tags", style="magenta", no_wrap=True)
+            tbl.add_column("Build Tags", style="magenta", no_wrap=True)
             tbl.add_column("Path", style="dim")
 
             for c in sorted(group, key=lambda x: (x.id, str(x.path))):
-                cmd_tags_str = ", ".join(sorted(c.cmd_tags)) if c.cmd_tags else ""
-                tbl.add_row(c.id, c.title, cmd_tags_str, str(c.path))
+                build_tags_str = ", ".join(sorted(c.build_tags)) if c.build_tags else ""
+                tbl.add_row(c.id, c.title, build_tags_str, str(c.path))
 
             console.print(tbl)
             console.print()
@@ -893,20 +893,130 @@ def _audit_defaults() -> int:
 # ---------- Main Entry Point ----------
 
 
-def run_audit_cli(list_all: bool, which: str | None) -> int:
-    """Run the appropriate audit command."""
+def audit_summary() -> int:
+    """A brief, one-screen health summary across every audit section.
+
+    This is what bare ``aliasr audit`` shows: headline counts plus a status per
+    section, so the common case is a quick glance rather than a wall of detail.
+    """
+    load_cheats()
+    load_variations()
+
+    console.print(_panel("AUDIT SUMMARY", "cyan"))
+    console.print()
+
+    # Cheats: totals + structural problems (duplicate ids / unparsed files).
+    md_files, _ = _get_md_files(show_excluded=False)
+    all_cheats = get_loaded_cheats()
+    count_by_path: dict[Path, int] = defaultdict(int)
+    by_id_paths: dict[str, set] = defaultdict(set)
+    for c in all_cheats:
+        count_by_path[Path(c.path)] += 1
+        by_id_paths[c.id].add(Path(c.path))
+    dupes = [cid for cid, paths in by_id_paths.items() if len(paths) > 1]
+    zeros = [p for p in md_files if count_by_path.get(p, 0) == 0]
+
+    # References: how many command parameters resolve to reference values.
+    from aliasr.core.cheats import _PH_RE, get_param_refs
+
+    total_params = params_with = 0
+    for c in all_cheats:
+        placeholders = _PH_RE.findall(c.cmd or "")
+        for param in {tok.split("|", 1)[0] for tok in placeholders}:
+            total_params += 1
+            if get_param_refs(Path(c.path), param):
+                params_with += 1
+
+    # Variations.
+    from aliasr.core.variations import _VARS as variations
+    from aliasr.core.variations import get_universal_variations
+
+    universal_vars = get_universal_variations()
+    total_vars = sum(
+        len(choices) for params in variations.values() for choices in params.values()
+    ) + sum(len(choices) for choices in universal_vars.values())
+
+    # Config: which file is in use and whether it predates current defaults.
+    from aliasr.core.config import _active_user_config_path, stale_config
+
+    cfg_path = _active_user_config_path()
+    stale = stale_config()
+
+    def _plural(n: int, noun: str) -> str:
+        return f"{n} {noun}" + ("" if n == 1 else "s")
+
+    t = _table(["Section", "Summary", "Status"])
+    cheat_issues = []
+    if dupes:
+        cheat_issues.append(_plural(len(dupes), "dup ID"))
+    if zeros:
+        cheat_issues.append(_plural(len(zeros), "empty file"))
+    t.add_row(
+        "Cheats",
+        f"{len(all_cheats)} cheats across {len(md_files)} files",
+        f"[yellow]⚠ {', '.join(cheat_issues)}[/]" if cheat_issues else "[green]✓[/]",
+    )
+    t.add_row(
+        "References",
+        f"{params_with}/{total_params} parameters have references",
+        "[green]✓[/]",
+    )
+    t.add_row(
+        "Variations",
+        f"{len(variations)} commands, {total_vars} variations",
+        "[green]✓[/]",
+    )
+    if cfg_path is None:
+        cfg_summary, cfg_status = "built-in defaults (no user config)", "[green]✓[/]"
+    elif stale:
+        cfg_summary = str(_rel(cfg_path))
+        cfg_status = f"[yellow]⚠ {_plural(len(stale[1]), 'option')} missing[/]"
+    else:
+        cfg_summary, cfg_status = str(_rel(cfg_path)), "[green]✓[/]"
+    t.add_row("Config", cfg_summary, cfg_status)
+    console.print(t)
+
+    console.print()
+    console.print(
+        "[dim]Run [bold]audit -a[/] for everything, or "
+        "[bold]-c[/] / [bold]-r[/] / [bold]-v[/] / [bold]--config[/] for one section.[/]"
+    )
+    console.print()
+    return 0
+
+
+def run_audit_cli(
+    *,
+    cheats: bool = False,
+    references: bool = False,
+    variations: bool = False,
+    config: bool = False,
+    run_all: bool = False,
+    list_all: bool = False,
+) -> int:
+    """Run the requested audit sections (any combination), else a brief summary.
+
+    No section flag -> the summary. ``-l``/``list_all`` on its own implies the
+    cheats section (it only expands cheat listings). Sections run in a fixed
+    order and their exit codes are OR'd together.
+    """
     clear_cache()
 
-    commands = {
-        None: lambda: audit_cheats(list_all=list_all),
-        "refs": audit_references,
-        "vars": audit_variations,
-        "conf": audit_config,
-    }
+    if run_all:
+        cheats = references = variations = config = True
+    if list_all and not (cheats or references or variations or config):
+        cheats = True
 
-    fn = commands.get(which)
-    if not fn:
-        console.print(f"[red]Unknown audit command: {which}[/]")
-        return 1
+    if not (cheats or references or variations or config):
+        return audit_summary()
 
-    return fn()
+    rc = 0
+    if cheats:
+        rc |= audit_cheats(list_all=list_all)
+    if references:
+        rc |= audit_references()
+    if variations:
+        rc |= audit_variations()
+    if config:
+        rc |= audit_config()
+    return rc

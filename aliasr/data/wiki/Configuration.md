@@ -132,7 +132,7 @@ direnv allow
 Then verify the configuration is being properly identified with:
 
 ```bash
-aliasr audit conf
+aliasr audit --config
 ```
 
 You should see for example if your project was created in `/root/projects/project-1/`:
