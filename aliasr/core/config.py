@@ -141,7 +141,15 @@ def _ensure_user_env() -> None:
         target = ALIASR_HOME / "config.toml"
         if not target.exists():
             try:
-                target.write_bytes((PKG_DIR / "data" / "config.toml").read_bytes())
+                # Drop the packaged file's leading comment block (the
+                # "edit the user copy instead" banner): this IS that copy, and
+                # being merged over the defaults it needn't keep every value.
+                src = (PKG_DIR / "data" / "config.toml").read_text(encoding="utf-8")
+                lines = src.splitlines(keepends=True)
+                i = 0
+                while i < len(lines) and lines[i].lstrip().startswith("#"):
+                    i += 1
+                target.write_text("".join(lines[i:]), encoding="utf-8")
             except OSError:
                 pass
 

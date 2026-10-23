@@ -35,6 +35,7 @@ cat <ip>.json | jq '. | map_values(keys)'
 ## nxc bloodhound-ce
 ```
 nxc ldap <ip> -u '<user>' <auth> --bloodhound -c all --dns-server <dc_ip>
+bloodhound-ce-ctl -u <bloodhound_url|http://127.0.0.1:8081> -c -p -z "$(ls *_bloodhound.zip | tail -n1)"
 ```
 
 ## Query mssql
