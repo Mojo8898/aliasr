@@ -12,6 +12,9 @@ _TEST_HOME = Path(tempfile.mkdtemp(prefix="aliasr-test-"))
 os.environ.setdefault("ALIASR_HOME", str(_TEST_HOME))
 os.environ.setdefault("ALIASR_CREDS_DB", str(_TEST_HOME / "exh.db"))
 os.environ.setdefault("ALIASR_PROFILE", str(_TEST_HOME / "profile.sh"))
+# Point the NetExec integration at a throwaway home too, so the suite never
+# reads from — or, on delete-propagation, writes to — a real ~/.nxc.
+os.environ.setdefault("ALIASR_NXC_HOME", str(_TEST_HOME / "nxc"))
 
 import pytest  # noqa: E402
 

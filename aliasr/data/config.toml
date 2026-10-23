@@ -34,6 +34,18 @@ db = "~/.exegol_history/exh.db"
 profile = ""  # exegol-history profile.sh; "" auto-detects from ~/.exegol_history/config.toml
 mask = false
 auto_hash = true
+confirm_delete = true  # Prompt before deleting a row in the creds/hosts menu; set false for one-key delete
+
+[nxc]
+# NetExec (nxcdb) integration. Credentials and hosts NetExec discovers are
+# pulled into aliasr on startup, and deleting one in the creds/hosts menu
+# deletes it from the NetExec database too.
+# block_bulk_delete guards only the `aliasr clear creds/hosts/all` commands,
+# which delete with no per-item prompt: leave it false to let a clear also empty
+# NetExec, or set it true to stop those clear commands from touching NetExec.
+# Deleting a credential or host from the menu is a separate, individually
+# confirmed action and always propagates to NetExec, regardless of this setting.
+block_bulk_delete = false
 
 [keybindings]
 quit = "ctrl+c"
@@ -61,7 +73,7 @@ move_down = "alt+down"
 [keybindings.table]
 edit_row = "enter"
 add_row = "ctrl+n"
-delete_row = "ctrl+j"
+delete_row = "ctrl+j"  # Terminals also send this for Ctrl+Enter; the creds/hosts delete prompt guards against an accidental trigger
 move_row_up = "ctrl+up"
 move_row_down = "ctrl+down"
 

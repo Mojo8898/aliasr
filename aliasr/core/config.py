@@ -33,6 +33,12 @@ class CredsConf:
     profile: Path | None
     mask: bool
     auto_hash: bool
+    confirm_delete: bool
+
+
+@dataclass(frozen=True)
+class NxcConf:
+    block_bulk_delete: bool
 
 
 @dataclass(frozen=True)
@@ -71,6 +77,7 @@ class Config:
     cheats: CheatsConf
     globals: GlobalsConf
     creds: CredsConf
+    nxc: NxcConf
     keybindings: KeyBindingsConf
     layout: dict[str, int]
     theme: ThemeConf
@@ -183,17 +190,21 @@ def _load_defaults() -> dict[str, Any]:
         return tomllib.load(f)
 
 
-def _load_user_toml() -> dict[str, Any]:
-    # 1. Highest precedence: explicit config path (project / direnv / CI)
+def _active_user_config_path() -> Path | None:
+    """The config.toml actually in effect, by the same precedence used to load it.
+
+    1. ``ALIASR_CONFIG`` (explicit file, or a dir holding config.toml)
+    2. ``ALIASR_HOME``/config.toml
+    3. ``XDG_CONFIG_HOME``/aliasr/config.toml
+    4. ~/.config/aliasr/config.toml
+    """
     env = os.getenv("ALIASR_CONFIG")
     if env:
         p = _expand_path(env)
         p = p / "config.toml" if p.is_dir() else p
         if p.is_file():
-            with p.open("rb") as f:
-                return tomllib.load(f)
+            return p
 
-    # 2. Standard user locations
     xdg_base = Path(os.getenv("XDG_CONFIG_HOME") or Path.home() / ".config")
     for p in (
         ALIASR_HOME / "config.toml",
@@ -201,9 +212,16 @@ def _load_user_toml() -> dict[str, Any]:
         Path.home() / ".config" / "aliasr" / "config.toml",
     ):
         if p.is_file():
-            with p.open("rb") as f:
-                return tomllib.load(f)
-    return {}
+            return p
+    return None
+
+
+def _load_user_toml() -> dict[str, Any]:
+    p = _active_user_config_path()
+    if p is None:
+        return {}
+    with p.open("rb") as f:
+        return tomllib.load(f)
 
 
 # ---------- Build ----------
@@ -266,7 +284,11 @@ def _build_config() -> Config:
         profile=_resolve_profile(str(cr_raw.get("profile", "") or "")),
         mask=bool(cr_raw["mask"]),
         auto_hash=bool(cr_raw["auto_hash"]),
+        confirm_delete=bool(cr_raw["confirm_delete"]),
     )
+
+    nxc_raw = dict(merged["nxc"])
+    nxc_conf = NxcConf(block_bulk_delete=bool(nxc_raw["block_bulk_delete"]))
 
     kb_raw = dict(merged["keybindings"])
     table = dict(kb_raw.get("table", {}))
@@ -305,6 +327,7 @@ def _build_config() -> Config:
         cheats=cheats_conf,
         globals=g_conf,
         creds=cr_conf,
+        nxc=nxc_conf,
         keybindings=kb_conf,
         layout=layout_dict,
         theme=theme_conf,
@@ -356,6 +379,9 @@ CREDS_DB: Path = Path(CONFIG.creds.db)
 CREDS_PROFILE: Path | None = CONFIG.creds.profile
 CREDS_MASK: bool = CONFIG.creds.mask
 CREDS_AUTO_HASH: bool = CONFIG.creds.auto_hash
+CREDS_CONFIRM_DELETE: bool = CONFIG.creds.confirm_delete
+
+NXC_BLOCK_BULK_DELETE: bool = CONFIG.nxc.block_bulk_delete
 
 GLOBALS_ROWS: int = CONFIG.layout["globals_rows"]
 GLOBALS_COLUMNS: int = CONFIG.layout["globals_columns"]
@@ -363,3 +389,70 @@ BUILD_COLUMNS: int = CONFIG.layout["build_columns"]
 
 THEME: ThemeConf = CONFIG.theme
 BUILD_SEPARATOR: str = CONFIG.build.separator
+
+
+# ---------- Config staleness (missing default declarations) ----------
+
+# Subtrees whose children are user-populated, not schema — don't flag their
+# individual keys as "missing" (e.g. a user's own set of global defaults).
+_FREEFORM_SUBTREES: frozenset[str] = frozenset({"globals.defaults"})
+
+
+def _missing_default_keys(
+    defaults: dict[str, Any], user: dict[str, Any], prefix: str = ""
+) -> list[str]:
+    """Dotted keys present in `defaults` but absent from `user`, recursively.
+
+    Recurses into nested tables (so a newly added option inside an existing
+    section is caught) but treats the free-form subtrees as opaque.
+    """
+    missing: list[str] = []
+    for key, dval in defaults.items():
+        path = prefix + key
+        if key not in user:
+            missing.append(path)
+            continue
+        if (
+            isinstance(dval, dict)
+            and isinstance(user[key], dict)
+            and path not in _FREEFORM_SUBTREES
+        ):
+            missing.extend(_missing_default_keys(dval, user[key], path + "."))
+    return missing
+
+
+def stale_config() -> tuple[Path, list[str]] | None:
+    """Return (path, missing_keys) when the in-use config.toml predates the
+    current defaults (i.e. is missing option declarations), else ``None``.
+
+    Cheap: parses the two small TOML files and walks the keys. Values the user
+    has customised are ignored — only absent declarations count.
+    """
+    path = _active_user_config_path()
+    if path is None:
+        return None
+    try:
+        with path.open("rb") as f:
+            user = tomllib.load(f)
+    except (OSError, tomllib.TOMLDecodeError):
+        return None
+    missing = _missing_default_keys(_load_defaults(), user)
+    return (path, missing) if missing else None
+
+
+def migrate_config(path: Path) -> Path:
+    """Back up `path` to ``<name>.bak`` and write the current packaged defaults.
+
+    Returns the backup path. The packaged file's leading comment banner is
+    dropped (as first-run setup does), since this is the editable user copy.
+    """
+    src = (PKG_DIR / "data" / "config.toml").read_text(encoding="utf-8")
+    lines = src.splitlines(keepends=True)
+    i = 0
+    while i < len(lines) and lines[i].lstrip().startswith("#"):
+        i += 1
+
+    bak = path.with_name(path.name + ".bak")
+    path.replace(bak)  # move the old config aside first
+    path.write_text("".join(lines[i:]), encoding="utf-8")
+    return bak

@@ -93,23 +93,67 @@ def _parser() -> argparse.ArgumentParser:
         "clear", help="Clear session data"
     )
     clear_sub = clear.add_subparsers(dest="clear_cmd", required=True)
+
+    # Shared --yes for the destructive clears, which prompt for confirmation.
+    yes_parent = argparse.ArgumentParser(add_help=False)
+    yes_parent.add_argument(
+        "-y", "--yes", action="store_true", help="Skip the confirmation prompt"
+    )
+
     clear_sub.add_parser(
-        "cache", help="Clear cheats cache (mandatory if cheats have been updated)"
+        "cache", help="Clear cheats cache (rebuilds automatically when cheats change)"
     )
     clear_sub.add_parser("globals", help="Clear globals")
-    clear_sub.add_parser("creds", help="Clear credentials")
-    clear_sub.add_parser("hosts", help="Clear hosts")
-    clear_sub.add_parser("all", help="Clear everything")
+    clear_sub.add_parser("creds", parents=[yes_parent], help="Clear credentials")
+    clear_sub.add_parser("hosts", parents=[yes_parent], help="Clear hosts")
+    clear_sub.add_parser("all", parents=[yes_parent], help="Clear everything")
 
     p.set_defaults(copy=False, outfile=None, pane=None, previous_pane=False)
     return p
+
+
+def _prompt_stale_config() -> None:
+    """Before launching, if the in-use config.toml is missing options added in a
+    newer aliasr, offer to back it up (config.toml.bak) and drop in the current
+    defaults. Declining (or a non-interactive shell) just proceeds unchanged."""
+    from aliasr.core.config import migrate_config, stale_config
+
+    stale = stale_config()
+    if not stale:
+        return
+    path, missing = stale
+
+    print(f"Your config is missing {len(missing)} option(s) from a newer aliasr:")
+    for key in missing[:15]:
+        print(f"  - {key}")
+    if len(missing) > 15:
+        print(f"  ...and {len(missing) - 15} more")
+    print(f"Config: {path}")
+    try:
+        answer = input(
+            "Back it up to config.toml.bak and replace with the current defaults? [y/N] "
+        ).strip().lower()
+    except EOFError:
+        answer = "n"
+
+    if answer in ("y", "yes"):
+        try:
+            bak = migrate_config(path)
+            print(f"Saved your old config to {bak.name}; wrote the new defaults.")
+        except OSError as e:
+            print(f"Could not update config: {e}")
+    print()
 
 
 def main() -> int:
     args = _parser().parse_args()
 
     if args.cmd == "clear":
-        from aliasr.core.bootstrap import clear_flags
+        from aliasr.core.bootstrap import clear_flags, confirm_clear
+
+        if not confirm_clear(args.clear_cmd, getattr(args, "yes", False)):
+            print("Aborted.")
+            return 1
 
         clear_cache = args.clear_cmd in ("cache", "all")
         clear_globals = args.clear_cmd in ("globals", "all")
@@ -137,6 +181,8 @@ def main() -> int:
             getattr(args, "kerberos", False),
             getattr(args, "use_kcache", False),
         )
+
+    _prompt_stale_config()
 
     os.environ.setdefault("COLORTERM", "truecolor")
 

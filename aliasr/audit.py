@@ -29,6 +29,8 @@ from aliasr.core.config import (
     CREDS_PROFILE,
     CREDS_MASK,
     CREDS_AUTO_HASH,
+    CREDS_CONFIRM_DELETE,
+    NXC_BLOCK_BULK_DELETE,
     DEFAULT_GLOBALS,
     GLOBALS_COLUMNS,
     GLOBALS_FILE,
@@ -678,6 +680,16 @@ def audit_config() -> int:
         console.print(f"  {'[green]✓[/]' if exists else '[dim]○[/]'} Exegol profile.sh: {CREDS_PROFILE}")
     console.print(f"  Mask credentials: [{'green' if CREDS_MASK else 'red'}]{CREDS_MASK}[/]")
     console.print(f"  Auto-calculate NT hash: [{'green' if CREDS_AUTO_HASH else 'red'}]{CREDS_AUTO_HASH}[/]")
+    console.print(f"  Confirm menu delete: [{'green' if CREDS_CONFIRM_DELETE else 'red'}]{CREDS_CONFIRM_DELETE}[/]")
+
+    # Validate NetExec (nxcdb) integration
+    console.print()
+    console.print(_panel("NXC CONFIGURATION"))
+    console.print()
+    console.print(
+        f"  Block bulk NetExec deletion: "
+        f"[{'green' if NXC_BLOCK_BULK_DELETE else 'red'}]{NXC_BLOCK_BULK_DELETE}[/]"
+    )
 
     # Validate theme
     console.print()

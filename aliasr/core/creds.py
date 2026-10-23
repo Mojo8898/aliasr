@@ -202,6 +202,43 @@ class _ExhDB:
                 )
                 conn.commit()
 
+    def reconcile_hosts(self, hosts) -> None:
+        """Reconcile the hosts table to exactly `hosts` (id-tracked delete).
+
+        Rows carrying a ``host_id`` update in place; id-less rows insert
+        (merging on the (ip, hostname) constraint); any stored row whose id is
+        absent from the incoming set is deleted. Unlike :meth:`write_hosts` this
+        removes, so it backs the hosts menu where deletions must stick. The
+        credentials table is never touched.
+        """
+        rows = [h for h in hosts if (h.ip or h.hostname)]
+        keep_ids = [h.host_id for h in rows if h.host_id is not None]
+        with self._lock:
+            with self._connect() as conn:
+                if keep_ids:
+                    placeholders = ",".join("?" * len(keep_ids))
+                    conn.execute(
+                        f"DELETE FROM hosts WHERE host_id NOT IN ({placeholders})",
+                        keep_ids,
+                    )
+                else:
+                    conn.execute("DELETE FROM hosts")
+                for h in rows:
+                    payload = (h.ip or None, h.hostname or None, h.role or None)
+                    if h.host_id is not None:
+                        cur = conn.execute(
+                            "UPDATE hosts SET ip=?, hostname=?, role=? WHERE host_id=?",
+                            (*payload, h.host_id),
+                        )
+                        if cur.rowcount:
+                            continue
+                    conn.execute(
+                        "INSERT INTO hosts (ip, hostname, role) VALUES (?, ?, ?) "
+                        "ON CONFLICT(ip, hostname) DO UPDATE SET role=excluded.role",
+                        payload,
+                    )
+                conn.commit()
+
     def clear_hosts(self) -> None:
         """Delete all hosts (leaves the credentials table intact)."""
         with self._lock:
@@ -334,35 +371,140 @@ def nt_hash(password: str) -> str:
 
 
 _MEMO: list[Credential] | None = None
+
+# (username, domain) keys that NetExec supplied this process, captured when its
+# credentials are first pulled in. ``None`` means "not pulled yet"; a set (even
+# empty) means the pull has run. A key dropped from this set when the user
+# deletes the credential in aliasr is deleted from NetExec too.
+_NXC_KEYS: set[tuple[str, str]] | None = None
+
 _db = _ExhDB()
 
 
+def _pull_nxc(rows: list[Credential]) -> list[Credential]:
+    """Fold NetExec's credentials into the shared store, once per process.
+
+    NetExec rows are written into the shared DB (so they gain stable ids and
+    persist like any other credential), and their ``(username, domain)`` keys
+    are remembered so a later deletion in aliasr can propagate back out. A
+    missing NetExec install, or any read error, simply yields no credentials.
+    """
+    global _NXC_KEYS
+    if _NXC_KEYS is not None:
+        return rows  # already pulled in this process
+
+    _NXC_KEYS = set()
+    try:
+        from aliasr.core import nxc
+
+        nxc_creds = [_materialize_hash(c) for c in nxc.read_creds()]
+    except Exception:
+        return rows
+
+    _NXC_KEYS = {(c.username, c.domain) for c in nxc_creds}
+    if not nxc_creds:
+        return rows
+
+    merged = _deduplicate_creds(list(rows) + nxc_creds, materialize=False)
+
+    # Only touch the shared DB when the pull actually changes it. On a normal
+    # launch NetExec's creds are already persisted, so the merge equals what's
+    # on disk and we skip the write entirely — no extra I/O or lock contention
+    # on the database Exegol also shares.
+    def _sig(cs: list[Credential]):
+        return sorted((c.username, c.password, c.hash, c.domain) for c in cs)
+
+    if _sig(merged) == _sig(rows):
+        return merged
+
+    # Persist (existing rows keep their ids; NetExec rows insert, merging on the
+    # (username, domain) constraint), then re-read so everything carries an id.
+    _db.write(merged)
+    return _db.read()
+
+
+def _nxc_key_covered(key: tuple[str, str], creds: list[Credential]) -> bool:
+    """Is a NetExec ``(username, domain)`` still represented in ``creds``?
+
+    Deduplication can merge a NetExec row into an existing one and shift its
+    domain (e.g. NetExec's ``admin``/``""`` folds into ``admin``/``CORP``), so a
+    plain key-set diff would wrongly flag the NetExec key as deleted the next
+    time anything is saved. A key counts as still present when some credential
+    shares its username and a compatible domain (equal, or empty on either
+    side) — matching how the two would have merged.
+    """
+    u, d = key
+    return any(
+        c.username == u and (not d or not c.domain or c.domain == d) for c in creds
+    )
+
+
 def load_creds() -> list[Credential]:
-    """Load credentials with memoization and deduplication."""
+    """Load credentials with memoization and deduplication.
+
+    On the first call of a process this also pulls in NetExec's credentials
+    (see :func:`_pull_nxc`), so aliasr starts up already carrying whatever
+    NetExec has discovered.
+    """
     global _MEMO
     if _MEMO is not None:
         return list(_MEMO)
 
-    rows = _db.read()
+    rows = _pull_nxc(_db.read())
     _MEMO = _deduplicate_creds(rows, materialize=False)
     return list(_MEMO)
 
 
 def save_creds(creds: Iterable[Credential]) -> None:
-    """Save credentials to storage, removing duplicates."""
-    global _MEMO
+    """Save credentials to storage, removing duplicates.
+
+    Any NetExec-sourced credential no longer present in ``creds`` (i.e. deleted
+    in aliasr) is also deleted from the NetExec database, keeping the two stores
+    in sync the way aliasr already does with Exegol-history.
+    """
+    global _MEMO, _NXC_KEYS
 
     unique_creds = _deduplicate_creds(creds, materialize=True)
+
+    if _NXC_KEYS:
+        removed = {k for k in _NXC_KEYS if not _nxc_key_covered(k, unique_creds)}
+        if removed:
+            try:
+                from aliasr.core import nxc
+
+                nxc.delete_creds(removed)
+            except Exception:
+                pass
+            _NXC_KEYS -= removed
+
     _MEMO = list(unique_creds)
     Thread(target=_db.write, args=(unique_creds,), daemon=False).start()
 
 
 def clear_creds() -> None:
     """Clear all credentials from storage and unset the current credential in
-    exegol-history's profile.sh, so nothing lingers to autofill from."""
-    global _MEMO
+    exegol-history's profile.sh, so nothing lingers to autofill from.
+
+    By default this also empties NetExec's credential store (a bulk wipe), so
+    ``aliasr clear creds`` clears both. Setting ``[nxc] block_bulk_delete`` in
+    the config forbids that bulk deletion, leaving NetExec untouched. Either
+    way the NetExec keys are forgotten so the wipe isn't later misread as a
+    batch of individual deletions on the next save.
+    """
+    global _MEMO, _NXC_KEYS
     _MEMO = []
+    _NXC_KEYS = set()
     _db.clear()
+
+    from aliasr.core.config import NXC_BLOCK_BULK_DELETE
+
+    if not NXC_BLOCK_BULK_DELETE:
+        try:
+            from aliasr.core import nxc
+
+            nxc.clear_creds()
+        except Exception:
+            pass
     from aliasr.core.exegol import clear_current_credential
 
     clear_current_credential()

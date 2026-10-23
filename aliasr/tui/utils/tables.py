@@ -6,6 +6,7 @@ from textual.widgets.option_list import Option
 from aliasr.core.config import CREDS_MASK, kb_table
 from aliasr.core.creds import Credential
 from aliasr.core.globals import normalize_key
+from aliasr.core.hosts import Host
 
 
 TABLE_BINDINGS = [
@@ -91,4 +92,21 @@ def cred_option(c: Credential, idx: int) -> Option:
         _mask(c.hash) if CREDS_MASK else c.hash,
         c.domain,
     )
+    return Option(t, id=idx)
+
+
+def host_header():
+    t = Table(show_header=True, expand=True, pad_edge=False, box=None)
+    t.add_column("IP", no_wrap=True, justify="center", ratio=1)
+    t.add_column("Hostname", no_wrap=True, justify="center", ratio=1)
+    t.add_column("Role", no_wrap=True, justify="center", ratio=1)
+    return Padding(t, (0, 0, 0, 0))
+
+
+def host_option(h: Host, idx: int) -> Option:
+    t = Table(show_header=False, expand=True, pad_edge=False, box=None)
+    t.add_column("ip", no_wrap=True, ratio=1)
+    t.add_column("hostname", no_wrap=True, ratio=1)
+    t.add_column("role", no_wrap=True, ratio=1)
+    t.add_row(h.ip, h.hostname, h.role)
     return Option(t, id=idx)

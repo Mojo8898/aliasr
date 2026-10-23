@@ -379,6 +379,41 @@ CredEditor #grid {
     grid-size: 2;
 }
 
+HostEditor #panel {
+    width: auto;
+    height: 11;
+}
+
+HostEditor #grid {
+    width: 78;
+    grid-size: 2;
+}
+
+CredsScreen #tabbar {
+    margin: 1;
+    width: 100%;
+    text-align: center;
+}
+
+ConfirmDelete #panel {
+    width: auto;
+    max-width: 70;
+    height: auto;
+    padding: 1 2;
+}
+
+ConfirmDelete #confirm-msg {
+    width: auto;
+    margin-bottom: 1;
+    color: $warning;
+}
+
+ConfirmDelete #confirm-hint {
+    width: 100%;
+    text-align: center;
+    color: $secondary;
+}
+
 
 /* ============================================
    CLASSES

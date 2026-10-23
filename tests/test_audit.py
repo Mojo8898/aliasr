@@ -29,6 +29,7 @@ def test_audit_config_covers_full_schema(capsys):
         "CHEATS CONFIGURATION",
         "GLOBALS CONFIGURATION",
         "CREDENTIALS CONFIGURATION",
+        "NXC CONFIGURATION",
         "KEYBINDINGS CONFIGURATION",
         "BUILD CONFIGURATION",
         "THEME CONFIGURATION",
@@ -42,6 +43,7 @@ def test_audit_config_covers_full_schema(capsys):
         "Custom paths first",
         "Show globals grid",
         "Auto-calculate NT hash",
+        "Block bulk NetExec deletion",
         "bindings defined across",  # keybindings summary line
     ):
         assert label in out, f"missing setting: {label}"

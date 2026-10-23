@@ -34,8 +34,8 @@ class MainScreen(Screen[None]):
         Binding(
             kb_root("creds_screen"),
             "creds_screen",
-            "Creds",
-            tooltip="Open the credentials menu.",
+            "Creds/Hosts",
+            tooltip="Open the credentials & hosts menu.",
         ),
 
         Binding(
