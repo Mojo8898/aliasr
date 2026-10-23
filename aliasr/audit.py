@@ -265,9 +265,6 @@ def audit_references() -> int:
     total_params = 0
     total_refs = 0
     params_with = 0
-    params_without = 0
-    missing_refs = []
-    existing_refs = []
 
     for p in sorted(md_files):
         cheats = [c for c in all_cheats if Path(c.path) == p]
@@ -275,7 +272,6 @@ def audit_references() -> int:
             continue
 
         file_params = []
-        file_missing = []
 
         for cheat in cheats:
             total_cheats += 1
@@ -290,18 +286,12 @@ def audit_references() -> int:
                     params_with += 1
                     total_refs += len(refs)
                     file_params.append((cheat.title, param, len(refs)))
-                else:
-                    params_without += 1
-                    file_missing.append((cheat.title, param))
-
-        missing_refs.extend((p, t, prm) for t, prm in file_missing)
 
         if file_params:
             console.print(f"[bold yellow]{_rel(p)}[/]")
             console.print("  [green]✓ Parameters with references:[/]")
             for title, prm, count in file_params:
                 console.print(f"    [dim]•[/] {title} :: [cyan]<{prm}>[/] ([green]{count} refs[/])")
-                existing_refs.append((p, title, prm, count))
             console.print()
 
     # Summary
@@ -312,7 +302,6 @@ def audit_references() -> int:
     stats.add_row("Total cheats scanned", f"[blue]{total_cheats}[/]")
     stats.add_row("Total parameters found", f"[yellow]{total_params}[/]")
     stats.add_row("Parameters with references", f"[green]{params_with}[/]")
-    stats.add_row("Parameters without references", f"[red]{params_without}[/]")
     stats.add_row("Total reference values", f"[magenta]{total_refs}[/]")
     console.print()
     console.print(stats)
