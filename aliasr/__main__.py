@@ -125,17 +125,14 @@ def _parser() -> argparse.ArgumentParser:
     return p
 
 
-def _prompt_stale_config() -> None:
+def _update_stale_config() -> None:
     """Before launching, if the in-use config.toml is missing options added in a
-    newer aliasr, offer once to back it up (config.toml.bak) and drop in the
-    current defaults. Declining records ``[config] ignore_drift = true`` so the
-    prompt is not shown again; a non-interactive shell just proceeds."""
-    import sys
-
-    from aliasr.core.config import ignore_config_drift, migrate_config, stale_config
+    newer aliasr, add those declarations (with their default values) to the file
+    in place, preserving existing values. No prompt; once added it won't recur."""
+    from aliasr.core.config import inject_missing_defaults, stale_config
 
     stale = stale_config()
-    if not stale or not sys.stdin.isatty():
+    if not stale:
         return
     path, missing = stale
 
@@ -146,25 +143,10 @@ def _prompt_stale_config() -> None:
         print(f"  ...and {len(missing) - 15} more")
     print(f"Config: {path}")
     try:
-        answer = input(
-            "Back it up to config.toml.bak and replace with the current defaults? "
-            "Press Enter to keep your config and stop asking. [y/N] "
-        ).strip().lower()
-    except EOFError:
-        return
-
-    if answer in ("y", "yes"):
-        try:
-            bak = migrate_config(path)
-            print(f"Saved your old config to {bak.name}; wrote the new defaults.")
-        except OSError as e:
-            print(f"Could not update config: {e}")
-    else:
-        ignore_config_drift(path)
-        print(
-            "Keeping your config. This won't be shown again "
-            "(set [config] ignore_drift = false to re-enable)."
-        )
+        inject_missing_defaults(path, missing)
+        print("Your config has been updated with the new default(s).")
+    except OSError as e:
+        print(f"Could not update config: {e}")
     print()
 
 
@@ -212,7 +194,7 @@ def main() -> int:
             getattr(args, "use_kcache", False),
         )
 
-    _prompt_stale_config()
+    _update_stale_config()
 
     os.environ.setdefault("COLORTERM", "truecolor")
 

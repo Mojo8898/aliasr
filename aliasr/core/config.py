@@ -1,5 +1,4 @@
 import os
-import re
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
@@ -398,10 +397,6 @@ BUILD_SEPARATOR: str = CONFIG.build.separator
 # individual keys as "missing" (e.g. a user's own set of global defaults).
 _FREEFORM_SUBTREES: frozenset[str] = frozenset({"globals.defaults"})
 
-# Keys skipped by drift detection entirely. ``config`` holds the drift controls
-# themselves (e.g. ignore_drift); its absence should never itself be "drift".
-_DRIFT_IGNORE: frozenset[str] = frozenset({"config"})
-
 
 def _missing_default_keys(
     defaults: dict[str, Any], user: dict[str, Any], prefix: str = ""
@@ -409,14 +404,11 @@ def _missing_default_keys(
     """Dotted keys present in `defaults` but absent from `user`, recursively.
 
     Recurses into nested tables (so a newly added option inside an existing
-    section is caught) but treats the free-form subtrees as opaque and skips the
-    drift-control keys entirely.
+    section is caught) but treats the free-form subtrees as opaque.
     """
     missing: list[str] = []
     for key, dval in defaults.items():
         path = prefix + key
-        if path in _DRIFT_IGNORE:
-            continue
         if key not in user:
             missing.append(path)
             continue
@@ -444,51 +436,77 @@ def stale_config() -> tuple[Path, list[str]] | None:
             user = tomllib.load(f)
     except (OSError, tomllib.TOMLDecodeError):
         return None
-    cfg = user.get("config")
-    if isinstance(cfg, dict) and cfg.get("ignore_drift"):
-        return None  # user has opted out of drift prompts
     missing = _missing_default_keys(_load_defaults(), user)
     return (path, missing) if missing else None
 
 
-def migrate_config(path: Path) -> Path:
-    """Back up `path` to ``<name>.bak`` and write the current packaged defaults.
+def _toml_value(v: Any) -> str:
+    """Serialize a scalar/list default value to its TOML representation."""
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    if isinstance(v, (int, float)):
+        return str(v)
+    if isinstance(v, str):
+        return '"' + v.replace("\\", "\\\\").replace('"', '\\"') + '"'
+    if isinstance(v, list):
+        return "[" + ", ".join(_toml_value(x) for x in v) + "]"
+    return '""'
 
-    Returns the backup path. The packaged file's leading comment banner is
-    dropped (as first-run setup does), since this is the editable user copy.
+
+def _toml_section(name: str, table: dict[str, Any]) -> str:
+    """Serialize a whole table (and any nested sub-tables) as a TOML block."""
+    out = [f"\n[{name}]\n"]
+    out += [f"{k} = {_toml_value(v)}\n" for k, v in table.items() if not isinstance(v, dict)]
+    out += [_toml_section(f"{name}.{k}", v) for k, v in table.items() if isinstance(v, dict)]
+    return "".join(out)
+
+
+def inject_missing_defaults(path: Path, missing: list[str]) -> None:
+    """Add missing default declarations to the user's config.toml, in place.
+
+    A key inside an existing table is inserted right after that table's header;
+    an absent table is appended as a new section. The user's existing values and
+    comments are preserved — only the missing lines are added.
     """
-    src = (PKG_DIR / "data" / "config.toml").read_text(encoding="utf-8")
-    lines = src.splitlines(keepends=True)
-    i = 0
-    while i < len(lines) and lines[i].lstrip().startswith("#"):
-        i += 1
+    defaults = _load_defaults()
 
-    bak = path.with_name(path.name + ".bak")
-    path.replace(bak)  # move the old config aside first
-    path.write_text("".join(lines[i:]), encoding="utf-8")
-    return bak
+    def _default_for(dotted: str) -> Any:
+        v: Any = defaults
+        for part in dotted.split("."):
+            v = v[part]
+        return v
 
+    inserts: dict[str, list[str]] = {}  # "[table]" header -> new key lines
+    new_sections: list[str] = []
 
-def ignore_config_drift(path: Path) -> None:
-    """Persist ``[config] ignore_drift = true`` in the user's config so the
-    drift prompt is not shown again. Edits the text (not a TOML rewrite) to keep
-    the user's comments and formatting; a no-op on any I/O error.
-    """
-    try:
-        text = path.read_text(encoding="utf-8")
-    except OSError:
-        return
+    for dotted in missing:
+        parts = dotted.split(".")
+        value = _default_for(dotted)
+        if len(parts) == 1:
+            if isinstance(value, dict):
+                new_sections.append(_toml_section(parts[0], value))
+            continue
+        header = f"[{'.'.join(parts[:-1])}]"
+        inserts.setdefault(header, []).append(f"{parts[-1]} = {_toml_value(value)}\n")
 
-    if re.search(r"(?m)^[ \t]*ignore_drift[ \t]*=", text):
-        text = re.sub(r"(?m)^([ \t]*ignore_drift[ \t]*=).*$", r"\1 true", text)
-    elif re.search(r"(?m)^[ \t]*\[config\][ \t]*$", text):
-        text = re.sub(r"(?m)^([ \t]*\[config\][ \t]*)$", r"\1\nignore_drift = true", text)
-    else:
+    lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+    out: list[str] = []
+    seen: set[str] = set()
+    for line in lines:
+        out.append(line if line.endswith("\n") else line + "\n")
+        header = line.strip()
+        if header in inserts:
+            seen.add(header)
+            out.extend(inserts[header])
+
+    # Tables whose header was not present become new sections.
+    for header, keylines in inserts.items():
+        if header not in seen:
+            new_sections.append("\n" + header + "\n" + "".join(keylines))
+
+    text = "".join(out)
+    if new_sections:
         if text and not text.endswith("\n"):
             text += "\n"
-        text += "\n[config]\nignore_drift = true\n"
-
-    try:
-        path.write_text(text, encoding="utf-8")
-    except OSError:
-        pass
+        text += "".join(new_sections)
+    path.write_text(text, encoding="utf-8")

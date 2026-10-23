@@ -1,4 +1,4 @@
-"""Config staleness detection + migration (missing default declarations)."""
+"""Config staleness detection + in-place injection of missing defaults."""
 import tomllib
 
 from aliasr.core import config
@@ -60,103 +60,64 @@ def test_stale_config_none_when_no_user_config(tmp_path, monkeypatch):
     assert result is None or result[1] == []
 
 
-# ---------- migrate_config ----------
+# ---------- inject_missing_defaults ----------
 
 
-def test_migrate_config_backs_up_and_writes_defaults(tmp_path):
-    cfg = tmp_path / "config.toml"
-    cfg.write_text("[creds]\nmask = true\n")
-
-    bak = config.migrate_config(cfg)
-
-    assert bak == tmp_path / "config.toml.bak"
-    assert bak.read_text() == "[creds]\nmask = true\n"  # old config preserved verbatim
-
-    with cfg.open("rb") as f:
-        data = tomllib.load(f)
-    # New file carries the current schema and no longer reads as stale.
-    assert data["nxc"]["block_bulk_delete"] is False
-    assert data["creds"]["confirm_delete"] is True
-    assert config._missing_default_keys(config._load_defaults(), data) == []
-
-
-# ---------- drift opt-out (ignore_drift) ----------
-
-
-def test_missing_default_keys_skips_config_section():
-    # The [config] section holds the drift controls; its absence isn't drift.
-    defaults = {"config": {"ignore_drift": False}, "x": 1}
-    assert config._missing_default_keys(defaults, {"x": 1}) == []
-
-
-def test_ignore_drift_suppresses_stale(tmp_path, monkeypatch):
-    cfg = tmp_path / "config.toml"
-    cfg.write_text("[creds]\nmask = false\n\n[config]\nignore_drift = true\n")
-    monkeypatch.setenv("ALIASR_CONFIG", str(cfg))
-    # Missing plenty of keys, but opted out -> no prompt.
-    assert config.stale_config() is None
-
-
-def test_ignore_config_drift_appends_when_absent(tmp_path):
+def test_inject_adds_key_in_existing_section(tmp_path):
     cfg = tmp_path / "config.toml"
     cfg.write_text("[creds]\nmask = false\n")
-    config.ignore_config_drift(cfg)
+    config.inject_missing_defaults(cfg, ["creds.confirm_delete"])
     with cfg.open("rb") as f:
-        assert tomllib.load(f)["config"]["ignore_drift"] is True
-    # The pre-existing content is preserved.
-    assert "[creds]" in cfg.read_text()
+        data = tomllib.load(f)
+    assert data["creds"]["confirm_delete"] is True  # default injected
+    assert data["creds"]["mask"] is False            # existing value preserved
 
 
-def test_ignore_config_drift_flips_existing(tmp_path):
+def test_inject_adds_missing_section(tmp_path):
     cfg = tmp_path / "config.toml"
-    cfg.write_text("[config]\nignore_drift = false\n")
-    config.ignore_config_drift(cfg)
+    cfg.write_text("[creds]\nmask = false\n")
+    config.inject_missing_defaults(cfg, ["nxc"])
     with cfg.open("rb") as f:
-        assert tomllib.load(f)["config"]["ignore_drift"] is True
+        data = tomllib.load(f)
+    assert data["nxc"]["block_bulk_delete"] is False
+    assert data["creds"]["mask"] is False
 
 
-def test_declining_persists_and_suppresses_future_prompts(tmp_path, monkeypatch):
+def test_inject_preserves_comments(tmp_path):
     cfg = tmp_path / "config.toml"
-    cfg.write_text("[creds]\nmask = false\n\n[nxc]\n")
+    cfg.write_text("[creds]\n# keep me\nmask = false\n")
+    config.inject_missing_defaults(cfg, ["creds.confirm_delete"])
+    assert "# keep me" in cfg.read_text()
+
+
+def test_inject_resolves_all_drift_and_keeps_values(tmp_path, monkeypatch):
+    # A near-empty config is missing almost everything; injecting the full set
+    # must yield a valid, drift-free file with the user's value preserved.
+    cfg = tmp_path / "config.toml"
+    cfg.write_text("[creds]\nmask = true\n")
     monkeypatch.setenv("ALIASR_CONFIG", str(cfg))
 
-    assert config.stale_config() is not None   # shown the first time
-    config.ignore_config_drift(cfg)            # user declines -> persisted
-    assert config.stale_config() is None       # never shown again
+    stale = config.stale_config()
+    assert stale is not None
+    config.inject_missing_defaults(cfg, stale[1])
+
+    with cfg.open("rb") as f:  # must still parse
+        data = tomllib.load(f)
+    assert config._missing_default_keys(config._load_defaults(), data) == []
+    assert data["creds"]["mask"] is True  # preserved
 
 
-def test_prompt_stale_config_decline_opts_out(tmp_path, monkeypatch):
-    """Declining the startup prompt persists ignore_drift and never re-prompts."""
+def test_update_stale_config_injects_and_silences(tmp_path, monkeypatch, capsys):
     from aliasr import __main__ as m
 
     cfg = tmp_path / "config.toml"
     cfg.write_text("[creds]\nmask = false\n\n[nxc]\n")
     monkeypatch.setenv("ALIASR_CONFIG", str(cfg))
-    monkeypatch.setattr("sys.stdin.isatty", lambda: True)
-    monkeypatch.setattr("builtins.input", lambda *_: "n")
 
-    m._prompt_stale_config()
+    m._update_stale_config()
+    out = capsys.readouterr().out
+    assert "missing" in out and "updated" in out
     with cfg.open("rb") as f:
-        assert tomllib.load(f)["config"]["ignore_drift"] is True
+        assert tomllib.load(f)["creds"]["confirm_delete"] is True
 
-    # A second launch must not prompt again.
-    def _boom(*_):
-        raise AssertionError("prompted again after opting out")
-
-    monkeypatch.setattr("builtins.input", _boom)
-    m._prompt_stale_config()
-
-
-def test_prompt_stale_config_enter_opts_out(tmp_path, monkeypatch):
-    """Just pressing Enter at the drift prompt keeps the config and opts out."""
-    from aliasr import __main__ as m
-
-    cfg = tmp_path / "config.toml"
-    cfg.write_text("[creds]\nmask = false\n\n[nxc]\n")
-    monkeypatch.setenv("ALIASR_CONFIG", str(cfg))
-    monkeypatch.setattr("sys.stdin.isatty", lambda: True)
-    monkeypatch.setattr("builtins.input", lambda *_: "")  # Enter
-
-    m._prompt_stale_config()
-    with cfg.open("rb") as f:
-        assert tomllib.load(f)["config"]["ignore_drift"] is True
+    assert config.stale_config() is None  # no longer stale -> won't recur

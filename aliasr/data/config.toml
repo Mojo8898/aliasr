@@ -39,9 +39,6 @@ confirm_delete = true  # Prompt before deleting a row in the creds/hosts menu; s
 [nxc]
 block_bulk_delete = false  # true forbids `aliasr clear creds/hosts/all` from deleting in nxcdb
 
-[config]
-ignore_drift = false  # true silences the "config is missing newer options" prompt on startup
-
 [keybindings]
 quit = "ctrl+c"
 copy_input = "ctrl+b"
