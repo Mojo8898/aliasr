@@ -120,6 +120,102 @@ def copy_to_clipboard(cmd: str) -> int:
     return 0
 
 
+# A command longer than this is not typed into the shell: the terminal input
+# buffer (the kernel tty line-discipline queue, ~4 KB and kernel-dependent)
+# silently drops whatever overflows it, truncating long commands mid-flight.
+# Kept well under that floor so it holds in and out of tmux, on any box.
+_INLINE_MAX = 2048
+
+
+def _write_cmd_tempfile(cmd: str) -> str:
+    """Write ``cmd`` to a private (0600) temp file and return its path."""
+    import tempfile
+
+    fd, path = tempfile.mkstemp(prefix="aliasr-run-", suffix=".sh")
+    try:
+        os.write(fd, (cmd if cmd.endswith("\n") else cmd + "\n").encode("utf-8"))
+    finally:
+        os.close(fd)
+    return path
+
+
+def _deliver_inline(cmd: str, using_tmux: bool, execute: bool, pane_index: str | None) -> None:
+    """Type a (short) command at the prompt, or send it to a target tmux pane."""
+    if using_tmux and pane_index and pane_index.isdigit():
+        if _tmux_send_keys(pane_index, cmd, execute):
+            return
+    _tty_inject(cmd + ("\n" if execute else ""))
+
+
+_KNOWN_SHELLS = ("zsh", "bash", "fish", "dash", "ksh", "sh")
+
+
+def _parent_shell() -> str:
+    """Name of the interactive shell aliasr will hand the command back to.
+
+    Prefer aliasr's parent process when it is itself a shell; otherwise (e.g.
+    launched via ``uv run``/a wrapper, so the parent is not a shell) fall back
+    to ``$SHELL``.
+    """
+    try:
+        with open(f"/proc/{os.getppid()}/comm", encoding="utf-8") as f:
+            comm = f.read().strip().lstrip("-")
+        if any(s in comm for s in _KNOWN_SHELLS):
+            return comm
+    except OSError:
+        pass
+    return os.path.basename(os.environ.get("SHELL", "")).strip()
+
+
+def _inject_long(cmd: str, using_tmux: bool, execute: bool, pane_index: str | None) -> int:
+    """Deliver a command too long to type at the prompt (in or out of tmux).
+
+    A long command can't be pushed through the terminal input buffer (it is
+    truncated at ~4 KB), and pasting it into the live prompt races the shell's
+    line editor (causing a doubled/garbled echo). So we never deliver the whole
+    command that way: we write it to a temp file and inject only a tiny,
+    race-free bootstrap that the shell runs itself.
+
+    * execute -> ``source <file>`` runs it in the current shell (exports
+      persist; the announce banners still show each step).
+    * review (zsh) -> ``print -z`` loads the full command into zsh's next edit
+      buffer, so it appears at the prompt ready to review/edit/run -- no paste.
+    * review (other shells) -> copy to the clipboard (no portable way to preload
+      the line editor), falling back to a saved file.
+    """
+    import shlex
+
+    path = _write_cmd_tempfile(cmd)
+    q = shlex.quote(path)
+    shell = _parent_shell()
+
+    if execute:
+        _deliver_inline(f"source {q}; rm -f {q}", using_tmux, True, pane_index)
+        return 0
+
+    if "zsh" in shell:
+        # The bootstrap runs (hence execute=True); print -z then pops the full
+        # command into the next prompt's editable buffer.
+        _deliver_inline(f'print -z -- "$(< {q})"; rm -f {q}', using_tmux, True, pane_index)
+        return 0
+
+    try:
+        copy_to_clipboard(cmd)
+        print(
+            f"aliasr: command is {len(cmd)} bytes, over the terminal's input limit; "
+            "copied to clipboard — paste it to run or edit.",
+            file=sys.stderr,
+        )
+        os.unlink(path)
+    except Exception:
+        print(
+            "aliasr: command too long to type and no clipboard backend available; "
+            f"saved to {path} — run it with: source {path}",
+            file=sys.stderr,
+        )
+    return 0
+
+
 def inject(
     cmd: str = "",
     copy: bool = False,
@@ -131,10 +227,9 @@ def inject(
     """Build the final command string and inject"""
     if copy:
         return copy_to_clipboard(cmd)
-    elif outfile:
+    if outfile:
         return _write_to_file(cmd, outfile)
-    elif using_tmux and pane_index and pane_index.isdigit():
-        if _tmux_send_keys(pane_index, cmd, execute):
-            return 0
-    _tty_inject(cmd + ("\n" if execute else ""))
+    if len(cmd) > _INLINE_MAX:
+        return _inject_long(cmd, using_tmux, execute, pane_index)
+    _deliver_inline(cmd, using_tmux, execute, pane_index)
     return 0
