@@ -210,3 +210,228 @@ def test_creds_drops_row_reordering_globals_keeps_it():
     globals_actions = actions(GlobalsScreen)
     assert "move_row_up" in globals_actions
     assert "move_row_down" in globals_actions
+
+
+def test_oneline_joins_commands_with_semicolon():
+    """The one-row cheat preview joins newline-separated commands with '; ' and
+    collapses a '\\' continuation (within one command) to a space."""
+    from aliasr.tui.main_screen.cheatlist import CheatCommandList
+
+    cl = CheatCommandList()
+    # commands on separate lines -> joined with "; "
+    assert (
+        cl._one_line("rm /tmp/x\nnxc smb <ip>\ntee out")
+        == "rm /tmp/x; nxc smb <ip>; tee out"
+    )
+    # a "\"-continued single command collapses to a space (stays one segment)
+    assert cl._one_line("a \\\nb") == "a b"
+    # CRLF corpus variant, continuation + boundary
+    assert cl._one_line("a \\\r\nb\r\nc") == "a b; c"
+    # single command untouched
+    assert cl._one_line("nxc smb <ip>") == "nxc smb <ip>"
+
+
+async def test_build_preview_scrolls_and_panel_fits(app):
+    """A long (multi-line) command must scroll inside its own #preview-scroll box
+    rather than growing the panel past the screen edges."""
+    from pathlib import Path
+    from textual.containers import VerticalScroll
+    from aliasr.tui.build_screen.build_screen import BuildScreen
+
+    long_cmd = "\n".join(f"step{i} <ip> -u <user> ; \\" for i in range(25)) + "\nfinal <ip>"
+    async with app.run_test(size=(90, 20)) as pilot:
+        await pilot.pause()
+        screen = BuildScreen("Test", long_cmd, Path("x.md"))
+        await app.push_screen(screen)
+        await pilot.pause()
+        await pilot.pause()
+        panel = screen.query_one("#panel")
+        ps = screen.query_one("#preview-scroll", VerticalScroll)
+        # Panel stays within the screen; preview box is capped and scrollable.
+        assert 0 <= panel.region.y and panel.region.bottom <= app.size.height
+        assert ps.max_scroll_y > 0, "long command should overflow the capped preview"
+        assert not ps.can_focus, "preview box should stay out of the Tab cycle"
+        ps.scroll_end(animate=False)
+        await pilot.pause()
+        assert ps.scroll_offset.y == ps.max_scroll_y
+
+
+async def test_variations_panel_fits_and_options_visible(app):
+    """Regression for the variations modal overflowing the screen and hiding its
+    options: the panel must fit and the option list must be visible on-screen."""
+    from textual.containers import VerticalScroll
+    from textual.widgets import OptionList
+    from aliasr.tui.build_screen.variations_screen import VariationsScreen
+    from aliasr.core.variations import Variation
+
+    long_cmd = "\n".join(f"step{i} <ip> ; \\" for i in range(25)) + "\nfinal <ip>"
+    variations = {"ip": [Variation(f"host{i}", f"10.0.0.{i}", "ip", "") for i in range(30)]}
+    async with app.run_test(size=(90, 20)) as pilot:
+        await pilot.pause()
+        screen = VariationsScreen(long_cmd, variations)
+        await app.push_screen(screen)
+        await pilot.pause()
+        await pilot.pause()
+        panel = screen.query_one("#panel")
+        ps = screen.query_one("#preview-scroll", VerticalScroll)
+        lst = screen.query_one("#ip-list", OptionList)
+        assert 0 <= panel.region.y and panel.region.bottom <= app.size.height
+        assert ps.max_scroll_y > 0
+        assert lst.option_count == 30
+        assert lst.region.height > 0 and lst.region.bottom <= app.size.height
+
+
+async def test_build_short_command_stays_compact(app):
+    """A short command must not inflate the preview box — it should shrink to the
+    content it needs (regression: VerticalScroll wrapper filled to max-height)."""
+    from pathlib import Path
+    from textual.containers import VerticalScroll
+    from aliasr.tui.build_screen.build_screen import BuildScreen
+
+    async with app.run_test(size=(100, 40)) as pilot:
+        await pilot.pause()
+        screen = BuildScreen("Test", "ftp <ip>", Path("x.md"))
+        await app.push_screen(screen)
+        await pilot.pause()
+        await pilot.pause()
+        ps = screen.query_one("#preview-scroll", VerticalScroll)
+        assert ps.region.height <= 2, "one-line command should not fill the preview cap"
+        assert ps.max_scroll_y == 0, "short command should not need to scroll"
+
+
+async def test_build_preview_shows_commands_not_separator(app):
+    """A newline-separated multi-command cheat previews the commands themselves;
+    the build-time separator machinery (the `s` function / banners) never shows."""
+    from pathlib import Path
+    from aliasr.tui.build_screen.build_screen import BuildScreen
+
+    cmd = "rm /tmp/x\nnxc smb <ip>\ntee out"
+
+    async with app.run_test(size=(100, 40)) as pilot:
+        await pilot.pause()
+        b = BuildScreen("Test", cmd, Path("x.md"))
+        await app.push_screen(b)
+        await pilot.pause()
+        await pilot.pause()
+        rendered = b._preview.render().plain
+        assert "rm /tmp/x" in rendered and "tee out" in rendered
+        assert "s(){" not in rendered and "===" not in rendered
+
+
+async def test_build_submit_assembles_multi_command(app):
+    """Submitting a newline-separated multi-command cheat yields an assembled
+    command: the `s` separator is defined, each step is announced with its
+    (value-substituted) text, and the whole thing runs in bash."""
+    import subprocess
+    from pathlib import Path
+    from aliasr.tui.build_screen.build_screen import BuildScreen
+
+    captured = {}
+    async with app.run_test(size=(100, 40)) as pilot:
+        await pilot.pause()
+        b = BuildScreen("T", "echo one <ip>\necho two", Path("x.md"))
+        await app.push_screen(b, lambda r: captured.__setitem__("cmd", r))
+        await pilot.pause()
+        await pilot.pause()
+        b._exp_prefix = False
+        b._exp_krb = False
+        b._values["ip"] = "10.0.0.5"
+        b.action_submit()
+        await pilot.pause()
+
+    final = captured["cmd"]
+    assert "s(){" in final
+    assert "s 'echo one 10.0.0.5'; echo one 10.0.0.5" in final
+    r = subprocess.run(["bash", "-c", final], capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    assert "one 10.0.0.5" in r.stdout and "two" in r.stdout
+
+
+async def test_build_submit_ps_encode_skips_bash_separator(app):
+    """A ps_encode (PowerShell) cheat must NOT get the bash `s` separator."""
+    from pathlib import Path
+    from aliasr.tui.build_screen.build_screen import BuildScreen
+
+    captured = {}
+    async with app.run_test(size=(100, 40)) as pilot:
+        await pilot.pause()
+        b = BuildScreen("T", "Get-Thing\nGet-Other", Path("x.md"),
+                        tags=frozenset({"ps_encode"}))
+        await app.push_screen(b, lambda r: captured.__setitem__("cmd", r))
+        await pilot.pause()
+        await pilot.pause()
+        b._exp_prefix = False
+        b._exp_krb = False
+        b.action_submit()
+        await pilot.pause()
+
+    final = captured["cmd"]
+    assert final.startswith("powershell -e ")
+    assert "s(){" not in final
+
+
+async def test_build_submit_prefix_multi_command_is_valid_shell(app):
+    """Regression (code-review finding): aliasr_prefix on an assembled
+    multi-command cheat must produce runnable shell, not 'prefix s(){...}'."""
+    import subprocess
+    from pathlib import Path
+    from aliasr.tui.build_screen.build_screen import BuildScreen
+
+    captured = {}
+    async with app.run_test(size=(100, 40)) as pilot:
+        await pilot.pause()
+        b = BuildScreen("T", "echo a\necho b", Path("x.md"))
+        await app.push_screen(b, lambda r: captured.__setitem__("cmd", r))
+        await pilot.pause()
+        await pilot.pause()
+        b._exp_krb = False
+        b._exp_prefix = True
+        b._prefix_global = "env "  # 'env <cmd>' runs <cmd>; stands in for proxychains
+        b.action_submit()
+        await pilot.pause()
+
+    final = captured["cmd"]
+    assert final.startswith("s(){"), final  # prefix did not corrupt the leading def
+    r = subprocess.run(["bash", "-c", final], capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    assert "a" in r.stdout and "b" in r.stdout
+
+
+async def test_preview_scroll_keybindings(app):
+    """ctrl+up/down scroll the preview one line; ctrl+pageup/pagedown by a page,
+    in both the build and variations screens."""
+    from pathlib import Path
+    from aliasr.tui.build_screen.build_screen import BuildScreen
+    from aliasr.tui.build_screen.variations_screen import VariationsScreen
+    from aliasr.core.variations import Variation
+
+    long_cmd = "\n".join(f"echo step{i} <ip>" for i in range(30))
+
+    async def drive(screen):
+        await app.push_screen(screen)
+        await pilot.pause()
+        await pilot.pause()
+        ps = screen.query_one("#preview-scroll")
+        assert ps.max_scroll_y > 0
+        await pilot.press("ctrl+down")
+        await pilot.pause()
+        one = ps.scroll_offset.y
+        assert one == 1
+        await pilot.press("ctrl+pagedown")
+        await pilot.pause()
+        assert ps.scroll_offset.y > one          # page moved further
+        await pilot.press("ctrl+up")
+        await pilot.pause()
+        page = ps.scroll_offset.y
+        await pilot.press("ctrl+pageup")
+        await pilot.pause()
+        assert ps.scroll_offset.y < page          # paged back up
+        await app.pop_screen()
+        await pilot.pause()
+
+    async with app.run_test(size=(90, 20)) as pilot:
+        await pilot.pause()
+        await drive(BuildScreen("T", long_cmd, Path("x.md")))
+        await drive(
+            VariationsScreen(long_cmd, {"ip": [Variation("h", "1.1.1.1", "ip", "")]})
+        )

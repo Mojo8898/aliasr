@@ -8,14 +8,15 @@ from rich.text import Text
 from textual import on
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Grid, HorizontalGroup, Vertical
+from textual.containers import Grid, HorizontalGroup, Vertical, VerticalScroll
 from textual.events import Click
 from textual.screen import ModalScreen
 from textual.widgets import Input, OptionList, Static
 from textual_autocomplete import DropdownItem, TargetState
 
+from aliasr.core.assemble import assemble
 from aliasr.core.cheats import get_param_refs
-from aliasr.core.config import BUILD_COLUMNS, GLOBALS_AUTO_KRB, kb_build_screen
+from aliasr.core.config import BUILD_COLUMNS, BUILD_SEPARATOR, GLOBALS_AUTO_KRB, kb_build_screen
 from aliasr.core.globals import get_history, load_globals, save_global
 from aliasr.tui.utils.grid_nav import GRID_NAV_BINDINGS, grid_nav
 from aliasr.tui.utils.common import widget_id
@@ -54,6 +55,10 @@ class BuildScreen(ModalScreen[str | None]):
         *GRID_NAV_BINDINGS,
         Binding("pageup", "sc_page_up"),
         Binding("pagedown", "sc_page_down"),
+        Binding("ctrl+up", "preview_up", show=False),
+        Binding("ctrl+down", "preview_down", show=False),
+        Binding("ctrl+pageup", "preview_page_up", show=False),
+        Binding("ctrl+pagedown", "preview_page_down", show=False),
         Binding(
             kb_build_screen("param_screen"),
             "param_screen",
@@ -161,8 +166,9 @@ class BuildScreen(ModalScreen[str | None]):
                 if self._prefix_global:
                     yield Static("aliasr_prefix? ", id="prefix-toggle", classes="toggle-widget")
 
-            self._preview = Static(self._cmd, id="preview")
-            yield self._preview
+            with VerticalScroll(id="preview-scroll"):
+                self._preview = Static(self._cmd, id="preview")
+                yield self._preview
 
             if self._params:
                 with Grid(id="grid"):
@@ -190,6 +196,8 @@ class BuildScreen(ModalScreen[str | None]):
             yield Footer()
 
     def on_mount(self) -> None:
+        # Preview scrolls on its own scrollbar; keep it out of the Tab cycle.
+        self.query_one("#preview-scroll").can_focus = False
         if self._params:
             grid = self.query_one("#grid", Grid)
             grid.styles.grid_size_columns = BUILD_COLUMNS
@@ -480,14 +488,24 @@ class BuildScreen(ModalScreen[str | None]):
 
         # Rest of the method...
         built = self._replace_placeholders(self._cmd)
-        final_cmd = _apply_tags(built, self._tags)
 
-        if self._exp_prefix and self._prefix_global:
-            final_cmd = (
-                self._prefix_global.replace("{cmd}", final_cmd)
-                if "{cmd}" in self._prefix_global
-                else f"{self._prefix_global}{final_cmd}"
-            )
+        prefix = (
+            self._prefix_global if (self._exp_prefix and self._prefix_global) else ""
+        )
+
+        def _wrap(c: str) -> str:
+            if not prefix:
+                return c
+            return prefix.replace("{cmd}", c) if "{cmd}" in prefix else f"{prefix}{c}"
+
+        if "ps_encode" in self._tags:
+            # PowerShell: the separator is bash-only, so prefix the whole command
+            # outside the base64 payload.
+            final_cmd = _wrap(_apply_tags(built, self._tags))
+        else:
+            # Bash/sh: stitch commands with the announce-separator, prefixing each
+            # actual command (never the `s` definition), then apply any encode tag.
+            final_cmd = _apply_tags(assemble(built, BUILD_SEPARATOR, _wrap), self._tags)
 
         if self._exp_krb and self._krb_global:
             shell = os.environ.get("SHELL", "/bin/sh")
@@ -507,6 +525,27 @@ class BuildScreen(ModalScreen[str | None]):
 
     def action_cancel(self) -> None:
         self.dismiss(None)
+
+    # ---------- Preview scrolling ----------
+
+    def _scroll_preview(self, method: str) -> None:
+        try:
+            ps = self.query_one("#preview-scroll")
+        except Exception:
+            return
+        getattr(ps, method)(animate=False)
+
+    def action_preview_up(self) -> None:
+        self._scroll_preview("scroll_up")
+
+    def action_preview_down(self) -> None:
+        self._scroll_preview("scroll_down")
+
+    def action_preview_page_up(self) -> None:
+        self._scroll_preview("scroll_page_up")
+
+    def action_preview_page_down(self) -> None:
+        self._scroll_preview("scroll_page_down")
 
     # ---------- Events ----------
 

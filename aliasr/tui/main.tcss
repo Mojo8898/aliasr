@@ -243,15 +243,27 @@ MainScreen #root {
 VariationsScreen #panel {
     width: 88vw;
     height: 30;
+    max-height: 90vh;
+}
+
+VariationsScreen #preview-scroll {
+    height: auto;
+    max-height: 8;
+    margin: 1;
 }
 
 VariationsScreen #preview {
-    margin: 1;
+    height: auto;
+}
+
+VariationsScreen .build-optionlist {
+    height: 1fr;
 }
 
 BuildScreen #panel {
     margin: 0 5;
     height: auto;
+    max-height: 90vh;
 }
 
 BuildScreen #title-bar {
@@ -284,8 +296,14 @@ BuildScreen .toggle-widget:hover {
     border: round $primary 50%;
 }
 
-BuildScreen #preview {
+BuildScreen #preview-scroll {
+    height: auto;
+    max-height: 10;
     margin: 0 1 1 1;
+}
+
+BuildScreen #preview {
+    height: auto;
 }
 
 BuildScreen #grid {

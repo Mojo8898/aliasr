@@ -2,7 +2,7 @@ from rich.text import Text
 from textual import on
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Vertical
+from textual.containers import Vertical, VerticalScroll
 from textual.fuzzy import Matcher
 from textual.screen import ModalScreen
 from textual.widgets import Input, OptionList, Static, TabbedContent, TabPane, Tabs
@@ -24,6 +24,11 @@ class VariationsScreen(ModalScreen[dict[str, str] | None]):
 
         Binding(kb_root("prev_tab"), "prev_tab"),
         Binding(kb_root("next_tab"), "next_tab"),
+
+        Binding("ctrl+up", "preview_up", show=False),
+        Binding("ctrl+down", "preview_down", show=False),
+        Binding("ctrl+pageup", "preview_page_up", show=False),
+        Binding("ctrl+pagedown", "preview_page_down", show=False),
     ]
 
     def __init__(
@@ -45,8 +50,9 @@ class VariationsScreen(ModalScreen[dict[str, str] | None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="panel"):
-            self._preview = Static(self._cmd, id="preview")
-            yield self._preview
+            with VerticalScroll(id="preview-scroll"):
+                self._preview = Static(self._cmd, id="preview")
+                yield self._preview
             with TabbedContent(id="tc"):
                 for p in self._params:
                     with TabPane(p, id=p):
@@ -56,6 +62,8 @@ class VariationsScreen(ModalScreen[dict[str, str] | None]):
                         yield OptionList(id=f"{p}-list", classes="build-optionlist")
 
     def on_mount(self) -> None:
+        # Preview scrolls on its own scrollbar; keep it out of the Tab cycle.
+        self.query_one("#preview-scroll").can_focus = False
         if not self._vars:
             self.dismiss(None)
             return
@@ -243,6 +251,27 @@ class VariationsScreen(ModalScreen[dict[str, str] | None]):
 
     def action_cancel(self) -> None:
         self.dismiss(None)
+
+    # ---------- Preview scrolling ----------
+
+    def _scroll_preview(self, method: str) -> None:
+        try:
+            ps = self.query_one("#preview-scroll")
+        except Exception:
+            return
+        getattr(ps, method)(animate=False)
+
+    def action_preview_up(self) -> None:
+        self._scroll_preview("scroll_up")
+
+    def action_preview_down(self) -> None:
+        self._scroll_preview("scroll_down")
+
+    def action_preview_page_up(self) -> None:
+        self._scroll_preview("scroll_page_up")
+
+    def action_preview_page_down(self) -> None:
+        self._scroll_preview("scroll_page_down")
 
     # ---------- Events ----------
 
