@@ -12,6 +12,7 @@ import textwrap
 import pytest
 
 from aliasr.core import creds as creds_mod
+from aliasr.core import exegol
 from aliasr.core import hosts as hosts_mod
 from aliasr.core import nxc
 from aliasr.core.creds import (
@@ -513,3 +514,82 @@ def test_confirm_clear_skips_prompt_when_empty(monkeypatch):
 
     monkeypatch.setattr("builtins.input", _boom)
     assert bootstrap.confirm_clear("creds") is True  # proceeds without asking
+
+
+# ---------- deleting the current credential/host reconciles profile.sh ----------
+
+
+async def test_deleting_current_credential_clears_profile(app, nxc_home):
+    """Deleting the credential that profile.sh currently points at unsets it
+    there too (the ctrl+c-after-delete bug)."""
+    from aliasr.tui.creds_screen.creds_screen import CredsScreen
+
+    creds_mod._db.write([Credential("admin", "pw", "", "corp.local")])
+    exegol.set_current_credential(Credential("admin", "pw", "", "corp.local"))
+    assert exegol.current_credential() is not None
+
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        await app.push_screen(CredsScreen())
+        await pilot.pause()
+        app.screen.action_delete_row()
+        await pilot.pause()
+        await pilot.press("y")        # confirm
+        await pilot.pause()
+        await app.pop_screen()        # on_unmount
+        await pilot.pause()
+
+    assert exegol.current_credential() is None
+
+
+async def test_deleting_other_credential_keeps_current(app, nxc_home):
+    """Deleting a different credential must not disturb the current one."""
+    from aliasr.tui.creds_screen.creds_screen import CredsScreen
+
+    creds_mod._db.write([
+        Credential("keepme", "pw", "", "corp.local"),
+        Credential("victim", "x", "", "corp.local"),
+    ])
+    exegol.set_current_credential(Credential("keepme", "pw", "", "corp.local"))
+
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        await app.push_screen(CredsScreen())
+        await pilot.pause()
+        s = app.screen
+        s.action_list_down()          # highlight 'victim' (row 1)
+        await pilot.pause()
+        s.action_delete_row()
+        await pilot.pause()
+        await pilot.press("y")
+        await pilot.pause()
+        await app.pop_screen()
+        await pilot.pause()
+
+    cur = exegol.current_credential()
+    assert cur is not None and cur.username == "keepme"
+
+
+async def test_deleting_current_host_clears_profile_target(app, nxc_home):
+    """Deleting the current target host unsets the target vars in profile.sh."""
+    from aliasr.tui.creds_screen.creds_screen import CredsScreen
+
+    creds_mod._db.write_hosts([Host("10.0.0.9", "web.corp.local", "")])
+    exegol.set_current_host(ip="10.0.0.9", fqdn="web.corp.local")
+    assert exegol.current_host().get("ip") == "10.0.0.9"
+
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        await app.push_screen(CredsScreen())
+        await pilot.pause()
+        s = app.screen
+        s.action_next_tab()           # hosts tab
+        await pilot.pause()
+        s.action_delete_row()
+        await pilot.pause()
+        await pilot.press("y")
+        await pilot.pause()
+        await app.pop_screen()
+        await pilot.pause()
+
+    assert "ip" not in exegol.current_host()

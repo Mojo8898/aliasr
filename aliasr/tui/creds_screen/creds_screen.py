@@ -101,6 +101,12 @@ class CredsScreen(ModalScreen[None]):
             self._rows["hosts"] = [Host("Error", str(e), "")]
             self._olists["hosts"].disabled = True
 
+        # Remember what was loaded so on close we can tell whether the row
+        # backing exegol-history's *current* credential/host was deleted here.
+        self._initial_cred_ids = {(c.username, c.domain) for c in self._rows["creds"]}
+        self._initial_host_ips = {h.ip for h in self._rows["hosts"] if h.ip}
+        self._initial_host_fqdns = {h.hostname for h in self._rows["hosts"] if h.hostname}
+
         self._populate("creds")
         self._populate("hosts")
         self._show_tab("creds")
@@ -108,11 +114,54 @@ class CredsScreen(ModalScreen[None]):
 
     def on_unmount(self) -> None:
         if self._dirty["creds"]:
-            save_creds(self._non_empty("creds"))
+            survivors = self._non_empty("creds")
+            save_creds(survivors)
+            self._clear_deleted_current_credential(survivors)
             self._dirty["creds"] = False
         if self._dirty["hosts"]:
-            reconcile_hosts(self._non_empty("hosts"))
+            survivors = self._non_empty("hosts")
+            reconcile_hosts(survivors)
+            self._clear_deleted_current_host(survivors)
             self._dirty["hosts"] = False
+
+    def _clear_deleted_current_credential(self, survivors: list) -> None:
+        """If the credential set in exegol-history's profile.sh was just deleted
+        here, unset it there too, so a removed cred doesn't linger as the active
+        one (mirroring what a bulk `clear creds` already does)."""
+        from aliasr.core.exegol import clear_current_credential, current_credential
+
+        cur = current_credential()
+        if cur is None:
+            return
+        ident = (cur.username, cur.domain)
+        survivor_ids = {(c.username, c.domain) for c in survivors}
+        if ident in getattr(self, "_initial_cred_ids", set()) and ident not in survivor_ids:
+            clear_current_credential()
+
+    def _clear_deleted_current_host(self, survivors: list) -> None:
+        """Same idea for the current host: unset the target and/or DC vars in
+        profile.sh when the host backing them is deleted here."""
+        from aliasr.core.exegol import current_host, set_current_host
+
+        cur = current_host()
+        if not cur:
+            return
+        s_ips = {h.ip for h in survivors if h.ip}
+        s_fqdns = {h.hostname for h in survivors if h.hostname}
+        init_ips = getattr(self, "_initial_host_ips", set())
+        init_fqdns = getattr(self, "_initial_host_fqdns", set())
+
+        def _deleted(val: str, survivor_set: set, init_set: set) -> bool:
+            return bool(val) and val in init_set and val not in survivor_set
+
+        if _deleted(cur.get("ip", ""), s_ips, init_ips) or _deleted(
+            cur.get("fqdn", ""), s_fqdns, init_fqdns
+        ):
+            set_current_host(ip="", fqdn="")
+        if _deleted(cur.get("dc_ip", ""), s_ips, init_ips) or _deleted(
+            cur.get("dc_fqdn", ""), s_fqdns, init_fqdns
+        ):
+            set_current_host(dc_ip="", dc_fqdn="")
 
     # ---------- Tabs ----------
 
