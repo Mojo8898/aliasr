@@ -41,15 +41,51 @@ uv tool install git+https://github.com/Mojo8898/aliasr
 pipx install git+https://github.com/Mojo8898/aliasr
 ```
 
-I also highly recommend wrapping aliasr in a shell function so the credential and host you select follow you into your shell. Add this to your `~/.zshrc`:
+Add the following to your `~/.zshrc` to wrap aliasr in a shell function, so the credential and host you select follow you into your shell:
 
 ```bash
 function a { aliasr "$@" && exec zsh }
 ```
 
-aliasr records the credential and host you build with as [Exegol-history](https://github.com/ThePorgs/Exegol-history)'s *current* credential/host (written to its `profile.sh`). The `&& exec zsh` re-sources your shell when aliasr exits, so those values (and your prompt) refresh live instead of on the next new shell. For this to take effect, first set up Exegol-history's shell integration: source its `profile.sh` from your `~/.zshrc`, and optionally add its prompt hook to display the current `USER`/`DOMAIN`. See the [Exegol-history setup](https://github.com/ThePorgs/Exegol-history#readme) and aliasr's [Credentials & Hosts](https://github.com/Mojo8898/aliasr/wiki/05-%E2%80%90-Credentials-and-Hosts) guide for the details.
+aliasr records the credential and host you build with as [Exegol-history](https://github.com/ThePorgs/Exegol-history)'s *current* credential/host, writing them to its `profile.sh`. The `&& exec zsh` re-sources your shell when aliasr exits, so those values refresh live instead of on the next new shell. This relies on Exegol-history's `profile.sh` being sourced by your shell; the prompt setup below does that and also surfaces the current credential. See aliasr's [Credentials & Hosts](https://github.com/Mojo8898/aliasr/wiki/05-%E2%80%90-Credentials-and-Hosts) guide for the full picture.
 
-If you intend on leveraging the extended tmux integration aliasr offers (which you should), also add the following to your `~/.tmux.conf`:
+Add the following to your `~/.zshrc` to source `profile.sh` and show the current `USER` (and `DOMAIN`, when set) in your prompt. It overrides Kali's default `configure_prompt`:
+
+```zsh
+source ~/.exegol_history/profile.sh
+
+configure_prompt() {
+    # Exegol-history tag from the env vars profile.sh exports.
+    local db_prompt=""
+    if [[ -n "$USER" ]]; then
+        if [[ -n "$DOMAIN" ]]; then
+            db_prompt="%F{white}[%F{yellow}${USER}@${DOMAIN}%F{white}]%F{%(#.blue.green)}─"
+        else
+            db_prompt="%F{white}[%F{yellow}${USER}%F{white}]%F{%(#.blue.green)}─"
+        fi
+    fi
+
+    case "$PROMPT_ALTERNATIVE" in
+        twoline)
+            PROMPT=$'%F{%(#.blue.green)}┌──'"${db_prompt}"$'${debian_chroot:+($debian_chroot)─}${VIRTUAL_ENV:+($(basename $VIRTUAL_ENV))─}(%B%F{%(#.red.blue)}%n%b%F{%(#.blue.green)})-[%B%F{reset}%(6~.%-1~/…/%4~.%5~)%b%F{%(#.blue.green)}]\n└─%B%(#.%F{red}#.%F{blue}$)%b%F{reset} '
+            ;;
+        oneline)
+            PROMPT="${db_prompt}"$'${debian_chroot:+($debian_chroot)}${VIRTUAL_ENV:+($(basename $VIRTUAL_ENV))}%B%F{%(#.red.blue)}%n@%m%b%F{reset}:%B%F{%(#.blue.green)}%~%b%F{reset}%(#.#.$) '
+            RPROMPT=
+            ;;
+        backtrack)
+            PROMPT="${db_prompt}"$'${debian_chroot:+($debian_chroot)}${VIRTUAL_ENV:+($(basename $VIRTUAL_ENV))}%B%F{red}%n@%m%b%F{reset}:%B%F{blue}%~%b%F{reset}%(#.#.$) '
+            RPROMPT=
+            ;;
+    esac
+}
+
+export U="$USER" P="$PASSWORD" H="$NT_HASH" D="$DOMAIN"
+```
+
+The trailing `export` also gives you short `$U` / `$P` / `$H` / `$D` handles for the current credential. On a non-Kali prompt, invoke `configure_prompt` yourself (for example with `add-zsh-hook precmd configure_prompt`).
+
+To use aliasr's extended tmux integration, add the following to your `~/.tmux.conf`:
 
 ```bash
 # Add to ~/.tmux.conf
@@ -108,4 +144,4 @@ Detailed development setup instructions can be found in the [official Textual do
 
 - Inspired by [Arsenal](https://github.com/Orange-Cyberdefense/arsenal) by Orange Cyberdefense
 - Built with [Textual](https://github.com/Textualize/textual)
-- Special thanks to all members of my HackTheBox team [S4U2SelfEnjoyers](https://app.hackthebox.com/teams/7014?tab=members) for beta testing and providing essential feedback.
+- Special thanks to the members of the [S4U2SelfEnjoyers](https://app.hackthebox.com/teams/7014?tab=members) HackTheBox team for beta testing and providing essential feedback.
