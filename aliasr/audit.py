@@ -8,6 +8,7 @@ from pathlib import Path
 from rich import box
 from rich.console import Console
 from rich.panel import Panel
+from rich.markup import escape
 from rich.table import Table
 
 from aliasr.core.cheats import (
@@ -18,19 +19,23 @@ from aliasr.core.cheats import (
 )
 from aliasr.core.config import (
     BUILD_COLUMNS,
+    BUILD_SEPARATOR,
     CHEAT_PATHS,
     CHEATS_EXCLUDE,
     CHEATS_DEFAULT_GROUPING,
+    CONFIG,
     ALIASR_HOME,
     CREDS_DB,
     CREDS_PROFILE,
     CREDS_MASK,
+    CREDS_AUTO_HASH,
     DEFAULT_GLOBALS,
     GLOBALS_COLUMNS,
     GLOBALS_FILE,
     GLOBALS_HISTORY,
     GLOBALS_MAX_LEN,
     GLOBALS_AUTO_KRB,
+    GLOBALS_SHOW_GRID,
     GLOBALS_ROWS,
     THEME,
 )
@@ -632,6 +637,20 @@ def audit_config() -> int:
         else:
             console.print(f"  [red]✗[/] {path} [red](does not exist)[/]")
 
+    console.print()
+    console.print(
+        f"  Include bundled defaults: "
+        f"[{'green' if CONFIG.cheats.include_defaults else 'red'}]{CONFIG.cheats.include_defaults}[/]"
+    )
+    console.print(
+        f"  Custom paths first: "
+        f"[{'green' if CONFIG.cheats.custom_first else 'red'}]{CONFIG.cheats.custom_first}[/]"
+    )
+    grouping = CHEATS_DEFAULT_GROUPING or "[dim](none / show all)[/]"
+    console.print(f"  Default grouping: [cyan]{grouping}[/]")
+    if CHEATS_EXCLUDE:
+        console.print(f"  Excluded filenames: [dim]{', '.join(CHEATS_EXCLUDE)}[/]")
+
     # Validate globals configuration
     console.print()
     console.print(_panel("GLOBALS CONFIGURATION"))
@@ -657,6 +676,7 @@ def audit_config() -> int:
     if GLOBALS_HISTORY:
         console.print(f"  Max history length: [cyan]{GLOBALS_MAX_LEN}[/]")
     console.print(f"  Auto KRB5CCNAME: [{'green' if GLOBALS_AUTO_KRB else 'red'}]{GLOBALS_AUTO_KRB}[/]")
+    console.print(f"  Show globals grid: [{'green' if GLOBALS_SHOW_GRID else 'red'}]{GLOBALS_SHOW_GRID}[/]")
 
     # Validate credentials configuration
     console.print()
@@ -668,6 +688,7 @@ def audit_config() -> int:
         exists = CREDS_PROFILE.exists()
         console.print(f"  {'[green]✓[/]' if exists else '[dim]○[/]'} Exegol profile.sh: {CREDS_PROFILE}")
     console.print(f"  Mask credentials: [{'green' if CREDS_MASK else 'red'}]{CREDS_MASK}[/]")
+    console.print(f"  Auto-calculate NT hash: [{'green' if CREDS_AUTO_HASH else 'red'}]{CREDS_AUTO_HASH}[/]")
 
     # Validate theme
     console.print()
@@ -728,6 +749,54 @@ def audit_config() -> int:
 
     console.print(lt)
 
+    # Validate keybindings
+    console.print()
+    console.print(_panel("KEYBINDINGS CONFIGURATION"))
+    console.print()
+
+    kb = CONFIG.keybindings
+    kb_groups = [
+        ("root", kb.root),
+        ("build_screen", kb.build_screen),
+        ("grid_nav", kb.grid_nav),
+        ("table", kb.table),
+        ("table.copy", kb.table_copy),
+    ]
+    non_empty_groups = [(g, d) for g, d in kb_groups if d]
+    total_bindings = sum(len(d) for _, d in kb_groups)
+
+    for group, d in non_empty_groups:
+        console.print(f"  [bold]{group}[/] [dim]({len(d)})[/]")
+        for name, key in d.items():
+            if str(key).strip():
+                console.print(f"    [dim]•[/] {name}: [cyan]{key}[/]")
+            else:
+                warnings.append(f"Keybinding has no key assigned: {group}.{name}")
+                console.print(f"    [red]•[/] {name}: [red](unbound)[/]")
+
+    console.print(
+        f"\n  [dim]{total_bindings} bindings defined across "
+        f"{len(non_empty_groups)} groups[/]"
+    )
+
+    # Validate build (multi-command separator)
+    console.print()
+    console.print(_panel("BUILD CONFIGURATION"))
+    console.print()
+
+    if BUILD_SEPARATOR.strip():
+        preview = (
+            BUILD_SEPARATOR if len(BUILD_SEPARATOR) <= 60
+            else BUILD_SEPARATOR[:57] + "..."
+        )
+        console.print("  [green]✓[/] Multi-command separator configured")
+        console.print(f"    [dim]{escape(preview)}[/]")
+    else:
+        console.print(
+            "  [dim]○ No separator configured[/] "
+            "[dim](multi-command cheats run without announcements)[/]"
+        )
+
     # Summary
     console.print()
     console.print(_panel("SUMMARY"))
@@ -760,6 +829,8 @@ def _audit_defaults() -> int:
         "Cheats": {
             "Paths": str(CHEAT_PATHS),
             "Exclude": str(CHEATS_EXCLUDE),
+            "Include Defaults": str(CONFIG.cheats.include_defaults),
+            "Custom First": str(CONFIG.cheats.custom_first),
             "Default Tag Type": str(CHEATS_DEFAULT_GROUPING),
         },
         "Globals": {
@@ -767,6 +838,7 @@ def _audit_defaults() -> int:
             "History": str(GLOBALS_HISTORY),
             "Max Length": str(GLOBALS_MAX_LEN),
             "Auto KRB5CCNAME": str(GLOBALS_AUTO_KRB),
+            "Show Grid": str(GLOBALS_SHOW_GRID),
             "Grid Rows": str(GLOBALS_ROWS),
             "Grid Columns": str(GLOBALS_COLUMNS),
         },
@@ -775,6 +847,21 @@ def _audit_defaults() -> int:
             "Database": str(CREDS_DB),
             "Profile": str(CREDS_PROFILE),
             "Mask": str(CREDS_MASK),
+            "Auto Hash": str(CREDS_AUTO_HASH),
+        },
+        "Build": {
+            "Separator": "set" if BUILD_SEPARATOR.strip() else "(none)",
+        },
+        "Keybindings": {
+            "Total Bindings": str(
+                sum(len(d) for d in (
+                    CONFIG.keybindings.root,
+                    CONFIG.keybindings.build_screen,
+                    CONFIG.keybindings.grid_nav,
+                    CONFIG.keybindings.table,
+                    CONFIG.keybindings.table_copy,
+                ))
+            ),
         },
         "Layout": {
             "Build Columns": str(BUILD_COLUMNS),
