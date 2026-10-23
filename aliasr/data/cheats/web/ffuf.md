@@ -3,7 +3,7 @@
 
 ## Fuzz endpoints
 ```
-ffuf -u '<url>/FUZZ' -w <wordlist|/usr/share/seclists/Discovery/Web-Content/raft-small-words.txt> -c -ac
+u='<url>'; ffuf -u "${u%/}/FUZZ" -w <wordlist|/usr/share/seclists/Discovery/Web-Content/raft-small-words.txt> -c -ac
 ```
 
 ## Fuzz vhosts
@@ -13,7 +13,7 @@ ffuf -u '<url>' -H 'Host: FUZZ.<domain>' -w <wordlist|/usr/share/seclists/Discov
 
 ## Fuzz extensions
 ```
-ffuf -u '<url>/indexFUZZ' -w <wordlist|/usr/share/seclists/Discovery/Web-Content/web-extensions.txt> -c -ac
+u='<url>'; ffuf -u "${u%/}/indexFUZZ" -w <wordlist|/usr/share/seclists/Discovery/Web-Content/web-extensions.txt> -c -ac
 ```
 
 - wordlist
