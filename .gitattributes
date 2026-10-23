@@ -1,0 +1,4 @@
+# Normalize all text files to LF in the repo and on checkout, on every
+# platform. This makes line endings deterministic regardless of a
+# contributor's local core.autocrlf / core.eol settings.
+* text=auto eol=lf
