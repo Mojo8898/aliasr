@@ -1,4 +1,5 @@
 import os
+import re
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
@@ -397,6 +398,10 @@ BUILD_SEPARATOR: str = CONFIG.build.separator
 # individual keys as "missing" (e.g. a user's own set of global defaults).
 _FREEFORM_SUBTREES: frozenset[str] = frozenset({"globals.defaults"})
 
+# Keys skipped by drift detection entirely. ``config`` holds the drift controls
+# themselves (e.g. ignore_drift); its absence should never itself be "drift".
+_DRIFT_IGNORE: frozenset[str] = frozenset({"config"})
+
 
 def _missing_default_keys(
     defaults: dict[str, Any], user: dict[str, Any], prefix: str = ""
@@ -404,11 +409,14 @@ def _missing_default_keys(
     """Dotted keys present in `defaults` but absent from `user`, recursively.
 
     Recurses into nested tables (so a newly added option inside an existing
-    section is caught) but treats the free-form subtrees as opaque.
+    section is caught) but treats the free-form subtrees as opaque and skips the
+    drift-control keys entirely.
     """
     missing: list[str] = []
     for key, dval in defaults.items():
         path = prefix + key
+        if path in _DRIFT_IGNORE:
+            continue
         if key not in user:
             missing.append(path)
             continue
@@ -436,6 +444,9 @@ def stale_config() -> tuple[Path, list[str]] | None:
             user = tomllib.load(f)
     except (OSError, tomllib.TOMLDecodeError):
         return None
+    cfg = user.get("config")
+    if isinstance(cfg, dict) and cfg.get("ignore_drift"):
+        return None  # user has opted out of drift prompts
     missing = _missing_default_keys(_load_defaults(), user)
     return (path, missing) if missing else None
 
@@ -456,3 +467,28 @@ def migrate_config(path: Path) -> Path:
     path.replace(bak)  # move the old config aside first
     path.write_text("".join(lines[i:]), encoding="utf-8")
     return bak
+
+
+def ignore_config_drift(path: Path) -> None:
+    """Persist ``[config] ignore_drift = true`` in the user's config so the
+    drift prompt is not shown again. Edits the text (not a TOML rewrite) to keep
+    the user's comments and formatting; a no-op on any I/O error.
+    """
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return
+
+    if re.search(r"(?m)^[ \t]*ignore_drift[ \t]*=", text):
+        text = re.sub(r"(?m)^([ \t]*ignore_drift[ \t]*=).*$", r"\1 true", text)
+    elif re.search(r"(?m)^[ \t]*\[config\][ \t]*$", text):
+        text = re.sub(r"(?m)^([ \t]*\[config\][ \t]*)$", r"\1\nignore_drift = true", text)
+    else:
+        if text and not text.endswith("\n"):
+            text += "\n"
+        text += "\n[config]\nignore_drift = true\n"
+
+    try:
+        path.write_text(text, encoding="utf-8")
+    except OSError:
+        pass

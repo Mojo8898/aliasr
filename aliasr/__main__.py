@@ -127,12 +127,15 @@ def _parser() -> argparse.ArgumentParser:
 
 def _prompt_stale_config() -> None:
     """Before launching, if the in-use config.toml is missing options added in a
-    newer aliasr, offer to back it up (config.toml.bak) and drop in the current
-    defaults. Declining (or a non-interactive shell) just proceeds unchanged."""
-    from aliasr.core.config import migrate_config, stale_config
+    newer aliasr, offer once to back it up (config.toml.bak) and drop in the
+    current defaults. Declining records ``[config] ignore_drift = true`` so the
+    prompt is not shown again; a non-interactive shell just proceeds."""
+    import sys
+
+    from aliasr.core.config import ignore_config_drift, migrate_config, stale_config
 
     stale = stale_config()
-    if not stale:
+    if not stale or not sys.stdin.isatty():
         return
     path, missing = stale
 
@@ -147,7 +150,7 @@ def _prompt_stale_config() -> None:
             "Back it up to config.toml.bak and replace with the current defaults? [y/N] "
         ).strip().lower()
     except EOFError:
-        answer = "n"
+        return
 
     if answer in ("y", "yes"):
         try:
@@ -155,6 +158,12 @@ def _prompt_stale_config() -> None:
             print(f"Saved your old config to {bak.name}; wrote the new defaults.")
         except OSError as e:
             print(f"Could not update config: {e}")
+    else:
+        ignore_config_drift(path)
+        print(
+            "Keeping your config. This won't be shown again "
+            "(set [config] ignore_drift = false to re-enable)."
+        )
     print()
 
 

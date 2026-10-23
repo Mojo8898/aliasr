@@ -78,3 +78,70 @@ def test_migrate_config_backs_up_and_writes_defaults(tmp_path):
     assert data["nxc"]["block_bulk_delete"] is False
     assert data["creds"]["confirm_delete"] is True
     assert config._missing_default_keys(config._load_defaults(), data) == []
+
+
+# ---------- drift opt-out (ignore_drift) ----------
+
+
+def test_missing_default_keys_skips_config_section():
+    # The [config] section holds the drift controls; its absence isn't drift.
+    defaults = {"config": {"ignore_drift": False}, "x": 1}
+    assert config._missing_default_keys(defaults, {"x": 1}) == []
+
+
+def test_ignore_drift_suppresses_stale(tmp_path, monkeypatch):
+    cfg = tmp_path / "config.toml"
+    cfg.write_text("[creds]\nmask = false\n\n[config]\nignore_drift = true\n")
+    monkeypatch.setenv("ALIASR_CONFIG", str(cfg))
+    # Missing plenty of keys, but opted out -> no prompt.
+    assert config.stale_config() is None
+
+
+def test_ignore_config_drift_appends_when_absent(tmp_path):
+    cfg = tmp_path / "config.toml"
+    cfg.write_text("[creds]\nmask = false\n")
+    config.ignore_config_drift(cfg)
+    with cfg.open("rb") as f:
+        assert tomllib.load(f)["config"]["ignore_drift"] is True
+    # The pre-existing content is preserved.
+    assert "[creds]" in cfg.read_text()
+
+
+def test_ignore_config_drift_flips_existing(tmp_path):
+    cfg = tmp_path / "config.toml"
+    cfg.write_text("[config]\nignore_drift = false\n")
+    config.ignore_config_drift(cfg)
+    with cfg.open("rb") as f:
+        assert tomllib.load(f)["config"]["ignore_drift"] is True
+
+
+def test_declining_persists_and_suppresses_future_prompts(tmp_path, monkeypatch):
+    cfg = tmp_path / "config.toml"
+    cfg.write_text("[creds]\nmask = false\n\n[nxc]\n")
+    monkeypatch.setenv("ALIASR_CONFIG", str(cfg))
+
+    assert config.stale_config() is not None   # shown the first time
+    config.ignore_config_drift(cfg)            # user declines -> persisted
+    assert config.stale_config() is None       # never shown again
+
+
+def test_prompt_stale_config_decline_opts_out(tmp_path, monkeypatch):
+    """Declining the startup prompt persists ignore_drift and never re-prompts."""
+    from aliasr import __main__ as m
+
+    cfg = tmp_path / "config.toml"
+    cfg.write_text("[creds]\nmask = false\n\n[nxc]\n")
+    monkeypatch.setenv("ALIASR_CONFIG", str(cfg))
+    monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+    monkeypatch.setattr("builtins.input", lambda *_: "n")
+
+    m._prompt_stale_config()
+    with cfg.open("rb") as f:
+        assert tomllib.load(f)["config"]["ignore_drift"] is True
+
+    # A second launch must not prompt again.
+    def _boom(*_):
+        raise AssertionError("prompted again after opting out")
+
+    monkeypatch.setattr("builtins.input", _boom)
+    m._prompt_stale_config()
