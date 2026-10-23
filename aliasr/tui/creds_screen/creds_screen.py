@@ -121,7 +121,7 @@ class CredsScreen(ModalScreen[None]):
         if self._dirty["hosts"]:
             survivors = self._non_empty("hosts")
             reconcile_hosts(survivors)
-            self._clear_deleted_current_host(survivors)
+            self._sync_current_host(survivors)
             self._dirty["hosts"] = False
 
     def _sync_current_credential(self, survivors: list) -> None:
@@ -150,30 +150,41 @@ class CredsScreen(ModalScreen[None]):
         elif ident in getattr(self, "_initial_cred_ids", set()):
             clear_current_credential()
 
-    def _clear_deleted_current_host(self, survivors: list) -> None:
-        """Same idea for the current host: unset the target and/or DC vars in
-        profile.sh when the host backing them is deleted here."""
+    def _sync_current_host(self, survivors: list) -> None:
+        """Keep profile.sh's current host in step with edits here. The host is
+        matched by ip (exegol/NetExec's key); for the target and the DC
+        independently:
+
+        * renamed in place (same ip, new hostname) -> rewrite its fqdn var
+        * deleted (its ip, or fqdn for an ip-less host, is gone) -> unset its vars
+        """
         from aliasr.core.exegol import current_host, set_current_host
 
         cur = current_host()
         if not cur:
             return
-        s_ips = {h.ip for h in survivors if h.ip}
+        by_ip = {h.ip: h for h in survivors if h.ip}
+        s_ips = set(by_ip)
         s_fqdns = {h.hostname for h in survivors if h.hostname}
         init_ips = getattr(self, "_initial_host_ips", set())
         init_fqdns = getattr(self, "_initial_host_fqdns", set())
 
-        def _deleted(val: str, survivor_set: set, init_set: set) -> bool:
-            return bool(val) and val in init_set and val not in survivor_set
+        def _deleted(ip: str, fqdn: str) -> bool:
+            ip_gone = bool(ip) and ip in init_ips and ip not in s_ips
+            fqdn_gone = bool(fqdn) and fqdn in init_fqdns and fqdn not in s_fqdns
+            return ip_gone or (not ip and fqdn_gone)
 
-        if _deleted(cur.get("ip", ""), s_ips, init_ips) or _deleted(
-            cur.get("fqdn", ""), s_fqdns, init_fqdns
-        ):
+        t_ip, t_fqdn = cur.get("ip", ""), cur.get("fqdn", "")
+        if _deleted(t_ip, t_fqdn):
             set_current_host(ip="", fqdn="")
-        if _deleted(cur.get("dc_ip", ""), s_ips, init_ips) or _deleted(
-            cur.get("dc_fqdn", ""), s_fqdns, init_fqdns
-        ):
+        elif t_ip in by_ip and by_ip[t_ip].hostname != t_fqdn:
+            set_current_host(fqdn=by_ip[t_ip].hostname)
+
+        d_ip, d_fqdn = cur.get("dc_ip", ""), cur.get("dc_fqdn", "")
+        if _deleted(d_ip, d_fqdn):
             set_current_host(dc_ip="", dc_fqdn="")
+        elif d_ip in by_ip and by_ip[d_ip].hostname != d_fqdn:
+            set_current_host(dc_fqdn=by_ip[d_ip].hostname)
 
     # ---------- Tabs ----------
 

@@ -617,3 +617,47 @@ async def test_editing_current_credential_refreshes_profile(app, nxc_home):
 
     cur = exegol.current_credential()
     assert cur is not None and cur.password == "newpass"
+
+
+async def test_editing_current_host_refreshes_profile(app, nxc_home):
+    """Renaming the current host's fqdn in the menu updates profile.sh on close."""
+    from aliasr.tui.creds_screen.creds_screen import CredsScreen
+
+    creds_mod._db.write_hosts([Host("10.0.0.9", "web.corp.local", "")])
+    exegol.set_current_host(ip="10.0.0.9", fqdn="web.corp.local")
+
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        await app.push_screen(CredsScreen())
+        await pilot.pause()
+        s = app.screen
+        s.action_next_tab()  # hosts tab
+        await pilot.pause()
+        idx = next(i for i, h in enumerate(s._rows["hosts"]) if h.ip == "10.0.0.9")
+        row = s._rows["hosts"][idx]
+        s._rows["hosts"][idx] = Host("10.0.0.9", "web2.corp.local", row.role, row.host_id)
+        s._dirty["hosts"] = True
+        await app.pop_screen()
+        await pilot.pause()
+
+    assert exegol.current_host().get("fqdn") == "web2.corp.local"
+
+
+async def test_build_does_not_autoselect_stored_cred(app, nxc_home):
+    """With no current credential, a stored/pulled cred must NOT prefill the
+    build fields (so building can't silently promote it to current)."""
+    from pathlib import Path
+
+    from aliasr.tui.build_screen.build_screen import BuildScreen
+
+    exegol.clear_current_credential()
+    creds_mod._db.write([Credential("pulled", "pw", "", "corp.local")])
+    md = Path(next(c.path for c in app.cheats if c.path.endswith(".md")))
+
+    async with app.run_test(size=(160, 45)) as pilot:
+        await pilot.pause()
+        await app.push_screen(BuildScreen("t", "nxc smb <ip> -u '<user>' -p '<password>'", md))
+        await pilot.pause()
+        build = app.screen
+        assert not build._values.get("user")
+        assert not build._values.get("password")
