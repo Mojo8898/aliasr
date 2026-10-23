@@ -643,9 +643,9 @@ async def test_editing_current_host_refreshes_profile(app, nxc_home):
     assert exegol.current_host().get("fqdn") == "web2.corp.local"
 
 
-async def test_build_does_not_autoselect_stored_cred(app, nxc_home):
-    """With no current credential, a stored/pulled cred must NOT prefill the
-    build fields (so building can't silently promote it to current)."""
+async def test_build_autofills_stored_cred_when_no_current(app, nxc_home):
+    """With no current credential, the most-recent stored cred (e.g. one pulled
+    from nxcdb) pre-fills the build fields."""
     from pathlib import Path
 
     from aliasr.tui.build_screen.build_screen import BuildScreen
@@ -659,8 +659,8 @@ async def test_build_does_not_autoselect_stored_cred(app, nxc_home):
         await app.push_screen(BuildScreen("t", "nxc smb <ip> -u '<user>' -p '<password>'", md))
         await pilot.pause()
         build = app.screen
-        assert not build._values.get("user")
-        assert not build._values.get("password")
+        assert build._values.get("user") == "pulled"
+        assert build._values.get("password") == "pw"
 
 
 # ---------- building exports the whole credential/host ----------

@@ -135,13 +135,16 @@ class BuildScreen(ModalScreen[str | None]):
         has_cred_params = any(name in CRED_PARAMS for name in self._params)
 
         if has_cred_params:
+            from aliasr.core.creds import load_creds
             from aliasr.core.exegol import current_credential
 
-            # Default only to the credential exegol-history currently has set
-            # (shared via profile.sh). Deliberately no fall-back to an arbitrary
-            # stored credential: a pulled/added cred must not be auto-selected
-            # here and then become the current credential just by building.
-            most_recent = current_credential()
+            creds = load_creds()
+
+            # Default to the credential exegol-history currently has set (shared
+            # via profile.sh); fall back to the most recent stored credential,
+            # including any pulled from nxcdb, so a freshly-pulled cred is offered
+            # for the build.
+            most_recent = current_credential() or (creds[0] if creds else None)
             if most_recent:
                 cred_mapping = {
                     "user": most_recent.username,
