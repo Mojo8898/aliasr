@@ -1,5 +1,5 @@
 # NFS
-#target/remote #os/linux #proto/nfs
+#target/remote #os/linux #proto/nfs #port/2049
 
 ## Mount remote share
 ```
