@@ -270,14 +270,65 @@ def _deduplicate_creds(creds: Iterable[Credential], materialize: bool = False) -
 # ---------- Public API ----------
 
 
+def _md4(data: bytes) -> bytes:
+    """Pure-Python MD4 (RFC 1320).
+
+    Used for NT hashes when the platform's hashlib lacks the legacy ``md4``
+    algorithm — OpenSSL 3.x disables it by default, so ``hashlib.new("md4")``
+    raises ``ValueError`` on most current systems.
+    """
+    import struct
+
+    def rol(x: int, n: int) -> int:
+        x &= 0xFFFFFFFF
+        return ((x << n) | (x >> (32 - n))) & 0xFFFFFFFF
+
+    a, b, c, d = 0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476
+    msg = bytearray(data)
+    bit_len = (len(data) * 8) & 0xFFFFFFFFFFFFFFFF
+    msg.append(0x80)
+    while len(msg) % 64 != 56:
+        msg.append(0)
+    msg += struct.pack("<Q", bit_len)
+
+    for off in range(0, len(msg), 64):
+        X = list(struct.unpack("<16I", msg[off:off + 64]))
+        aa, bb, cc, dd = a, b, c, d
+        for i in (0, 4, 8, 12):  # round 1
+            a = rol(a + ((b & c) | (~b & d)) + X[i], 3)
+            d = rol(d + ((a & b) | (~a & c)) + X[i + 1], 7)
+            c = rol(c + ((d & a) | (~d & b)) + X[i + 2], 11)
+            b = rol(b + ((c & d) | (~c & a)) + X[i + 3], 19)
+        for i in (0, 1, 2, 3):  # round 2
+            a = rol(a + ((b & c) | (b & d) | (c & d)) + X[i] + 0x5A827999, 3)
+            d = rol(d + ((a & b) | (a & c) | (b & c)) + X[i + 4] + 0x5A827999, 5)
+            c = rol(c + ((d & a) | (d & b) | (a & b)) + X[i + 8] + 0x5A827999, 9)
+            b = rol(b + ((c & d) | (c & a) | (d & a)) + X[i + 12] + 0x5A827999, 13)
+        for i in (0, 2, 1, 3):  # round 3
+            a = rol(a + (b ^ c ^ d) + X[i] + 0x6ED9EBA1, 3)
+            d = rol(d + (a ^ b ^ c) + X[i + 8] + 0x6ED9EBA1, 9)
+            c = rol(c + (d ^ a ^ b) + X[i + 4] + 0x6ED9EBA1, 11)
+            b = rol(b + (c ^ d ^ a) + X[i + 12] + 0x6ED9EBA1, 15)
+        a = (a + aa) & 0xFFFFFFFF
+        b = (b + bb) & 0xFFFFFFFF
+        c = (c + cc) & 0xFFFFFFFF
+        d = (d + dd) & 0xFFFFFFFF
+
+    return struct.pack("<4I", a, b, c, d)
+
+
 def nt_hash(password: str) -> str:
-    """Generate NT hash from password."""
+    """Generate the NT hash (MD4 of the UTF-16LE password) as upper-hex."""
     if not password:
         return ""
 
+    data = password.encode("utf-16le")
     import hashlib
     try:
-        return hashlib.new("md4", password.encode("utf-16le")).hexdigest().upper()
+        return hashlib.new("md4", data).hexdigest().upper()
+    except ValueError:
+        # Legacy md4 unavailable (OpenSSL 3.x) — fall back to pure Python.
+        return _md4(data).hex().upper()
     except Exception:
         return ""
 

@@ -435,3 +435,26 @@ async def test_preview_scroll_keybindings(app):
         await drive(
             VariationsScreen(long_cmd, {"ip": [Variation("h", "1.1.1.1", "ip", "")]})
         )
+
+
+async def test_cred_editor_autofills_nt_hash(app):
+    """Typing a password in the editor auto-fills the NT hash field (CREDS_AUTO_HASH).
+
+    Regression guard: the hash was silently blank because hashlib lacked md4.
+    """
+    from aliasr.tui.creds_screen.cred_editor import CredEditor
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await app.push_screen(CredEditor("admin", "", "", "corp.local"))
+        await pilot.pause()
+        editor = app.screen
+        assert isinstance(editor, CredEditor)
+        editor.query_one("#password", Input).focus()
+        await pilot.pause()
+        await pilot.press("p", "a", "s", "s", "w", "o", "r", "d")
+        await pilot.pause()
+        assert (
+            editor.query_one("#nt-hash", Input).value
+            == "8846F7EAEE8FB117AD06BDD830B7586C"
+        )

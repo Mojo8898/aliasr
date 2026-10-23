@@ -70,8 +70,36 @@ More details: https://github.com/Orange-Cyberdefense/arsenal/issues/77
 # ---------- Public API ----------
 
 
+def _osc52_copy(text: str) -> bool:
+    """Copy via the OSC 52 terminal escape, written to the controlling TTY.
+
+    Backend-independent: works over SSH and inside tmux (with clipboard
+    passthrough) without xclip/xsel/wl-copy or clip.exe. Returns True if the
+    sequence was written. Mirrors ``_tty_inject`` by talking to /dev/tty
+    directly, so it also works while the Textual TUI owns stdout.
+    """
+    import base64
+
+    b64 = base64.b64encode(text.encode("utf-8")).decode("ascii")
+    seq = f"\033]52;c;{b64}\a"
+    if os.environ.get("TMUX"):
+        # Wrap so tmux forwards the sequence to the outer terminal.
+        seq = f"\033Ptmux;\033{seq}\033\\"
+    try:
+        with open("/dev/tty", "w") as tty:
+            tty.write(seq)
+            tty.flush()
+        return True
+    except OSError:
+        return False
+
+
 def copy_to_clipboard(cmd: str) -> int:
-    """Copy command to clipboard using best available backend."""
+    """Copy command to clipboard using best available backend.
+
+    Falls back to OSC 52 when no native clipboard tool is reachable (common on
+    headless/WSL/SSH setups), so copying works without xclip/xsel/wl-copy.
+    """
     import shutil
     import pyperclip
 
@@ -82,7 +110,13 @@ def copy_to_clipboard(cmd: str) -> int:
     elif shutil.which("xsel"):
         pyperclip.set_clipboard("xsel")
 
-    pyperclip.copy(cmd)
+    try:
+        pyperclip.copy(cmd)
+    except Exception:
+        # pyperclip found no working backend (it may even raise
+        # FileNotFoundError probing clip.exe on WSL) — try OSC 52.
+        if not _osc52_copy(cmd):
+            raise
     return 0
 
 

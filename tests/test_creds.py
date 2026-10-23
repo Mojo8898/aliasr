@@ -164,3 +164,56 @@ def test_clear_only_touches_credentials():
         hosts_left = conn.execute("SELECT COUNT(*) FROM hosts").fetchone()[0]
     assert creds_left == 0
     assert hosts_left == 1  # exegol-owned hosts survive an aliasr creds clear
+
+
+# ---------- NT hash (MD4 of UTF-16LE) ----------
+
+
+def test_nt_hash_known_vector():
+    """NT hash must match the canonical value for 'password'."""
+    from aliasr.core.creds import nt_hash
+
+    assert nt_hash("password") == "8846F7EAEE8FB117AD06BDD830B7586C"
+
+
+def test_nt_hash_empty_is_blank():
+    from aliasr.core.creds import nt_hash
+
+    assert nt_hash("") == ""
+
+
+def test_nt_hash_uses_md4_fallback_when_hashlib_lacks_it(monkeypatch):
+    """OpenSSL 3.x removes legacy md4; nt_hash must still work via pure-Python MD4.
+
+    Regression guard: hashlib.new('md4') raises ValueError on current systems,
+    which previously made nt_hash silently return '' (auto-hash did nothing).
+    """
+    import hashlib
+
+    from aliasr.core import creds
+
+    real_new = hashlib.new
+
+    def no_md4(name, *a, **k):
+        if name == "md4":
+            raise ValueError("unsupported hash type md4")
+        return real_new(name, *a, **k)
+
+    monkeypatch.setattr(hashlib, "new", no_md4)
+    assert creds.nt_hash("password") == "8846F7EAEE8FB117AD06BDD830B7586C"
+
+
+def test_md4_rfc1320_vectors():
+    from aliasr.core.creds import _md4
+
+    assert _md4(b"").hex() == "31d6cfe0d16ae931b73c59d7e0c089c0"
+    assert _md4(b"abc").hex() == "a448017aaf21d8525fc10ae87aa6729d"
+
+
+def test_save_materializes_missing_hash():
+    """Saving a credential with a password but no hash fills the hash in."""
+    from aliasr.core.creds import load_creds, save_creds
+
+    save_creds([Credential("admin", "password", "", "corp.local")])
+    stored = {c.username: c for c in load_creds()}
+    assert stored["admin"].hash == "8846F7EAEE8FB117AD06BDD830B7586C"
