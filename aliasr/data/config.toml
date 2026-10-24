@@ -76,9 +76,10 @@ col_3 = "ctrl+y"  # NT Hash
 col_4 = "ctrl+g"  # Domain
 
 [build]
-# Separator run before each command in a multi-command cheat, announcing the
-# command about to execute. It becomes a shell function `s` invoked as
-# `s '<command>'`, so "$1" is the command text. Bash/sh only.
+# DEPRECATED / unused. Multi-command (all-in-one) cheats now build into an `arun`
+# chain, and the announce banner lives in the standalone `arun` wrapper that
+# aliasr ships on PATH (see scripts/arun) rather than in the built command.
+# Kept only so existing configs still parse.
 separator = "if [ -t 1 ]; then printf '\\n\\033[1;36m=== %s ===\\033[0m\\n' \"$1\"; else printf '\\n=== %s ===\\n' \"$1\"; fi"
 
 [layout]

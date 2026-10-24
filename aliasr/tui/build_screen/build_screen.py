@@ -14,9 +14,9 @@ from textual.screen import ModalScreen
 from textual.widgets import Input, OptionList, Static
 from textual_autocomplete import DropdownItem, TargetState
 
-from aliasr.core.assemble import assemble, faketime_guard
+from aliasr.core.assemble import assemble
 from aliasr.core.cheats import get_param_refs
-from aliasr.core.config import BUILD_COLUMNS, BUILD_SEPARATOR, GLOBALS_AUTO_KRB, kb_build_screen
+from aliasr.core.config import BUILD_COLUMNS, GLOBALS_AUTO_KRB, kb_build_screen
 from aliasr.core.globals import get_history, load_globals, save_global
 from aliasr.tui.utils.grid_nav import GRID_NAV_BINDINGS, grid_nav
 from aliasr.tui.utils.common import widget_id
@@ -98,6 +98,7 @@ class BuildScreen(ModalScreen[str | None]):
         cmd: str,
         md_path: Path,
         tags: frozenset[str] = frozenset(),
+        cheat_tags: frozenset[str] = frozenset(),
         callback=None,
     ) -> None:
         super().__init__()
@@ -105,6 +106,7 @@ class BuildScreen(ModalScreen[str | None]):
         self._cmd = cmd
         self._md_path = md_path
         self._tags = tags
+        self._cheat_tags = cheat_tags
         self._callback = callback
 
         # Parse parameters and build initial values
@@ -559,28 +561,35 @@ class BuildScreen(ModalScreen[str | None]):
             self._prefix_global if (self._exp_prefix and self._prefix_global) else ""
         )
 
-        # `#faketime` cheats: run each command under skewrun to correct DC clock
-        # skew, but only when the shell isn't already skewed (see faketime_guard).
-        # The guard wraps the *executed* command via `wrap`, so it never shows in
-        # the `=== <cmd> ===` announce banners.
-        use_faketime = "faketime" in self._tags
-        skew_target = self._values.get("ip") or self._values.get("dc_ip") or ""
+        # `#faketime` cheats run under skewrun to correct DC clock skew. The
+        # per-step skewrun guard lives in the `arun` wrapper now; we only hand it
+        # the target via a leading `export AR_SKEW=...` (emitted by assemble).
+        skew_target = (
+            (self._values.get("ip") or self._values.get("dc_ip") or "")
+            if "faketime" in self._tags
+            else None
+        )
+
+        # `#target/local` cheats are injected into a foreign ssh/winrm shell that
+        # won't have `arun`/`skewrun`, so they must emit bare (see assemble).
+        local = "target/local" in self._cheat_tags
 
         def _wrap(c: str) -> str:
             if prefix:
                 c = prefix.replace("{cmd}", c) if "{cmd}" in prefix else f"{prefix}{c}"
-            if use_faketime:
-                c = faketime_guard(c, skew_target)
             return c
 
         if "ps_encode" in self._tags:
-            # PowerShell: the separator is bash-only, so prefix the whole command
+            # PowerShell: the arun chain is bash-only, so prefix the whole command
             # outside the base64 payload.
             final_cmd = _wrap(_apply_tags(built, self._tags))
         else:
-            # Bash/sh: stitch commands with the announce-separator, prefixing each
-            # actual command (never the `s` definition), then apply any encode tag.
-            final_cmd = _apply_tags(assemble(built, BUILD_SEPARATOR, _wrap), self._tags)
+            # Bash/sh: stitch commands into an `arun` chain (announce + skewrun),
+            # then apply any encode tag.
+            final_cmd = _apply_tags(
+                assemble(built, skew_target=skew_target, local=local, wrap=_wrap),
+                self._tags,
+            )
 
         if self._exp_krb and self._krb_global:
             shell = os.environ.get("SHELL", "/bin/sh")

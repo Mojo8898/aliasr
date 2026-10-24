@@ -29,6 +29,13 @@ dev = [
 asyncio_mode = "auto"
 testpaths = ["tests"]
 
+[tool.setuptools]
+# `arun` is a plain shell wrapper (not a Python entry point), shipped into the
+# wheel's .data/scripts/. uv tool and pipx link every executable the package
+# installs -- data scripts included -- onto PATH next to the `aliasr` shim, so
+# `arun` installs/updates/uninstalls with the package, no runtime bootstrap.
+script-files = ["scripts/arun"]
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["aliasr*"]

@@ -354,9 +354,10 @@ async def test_build_preview_shows_commands_not_separator(app):
 
 
 async def test_build_submit_assembles_multi_command(app):
-    """Submitting a newline-separated multi-command cheat yields an assembled
-    command: the `s` separator is defined, each step is announced with its
-    (value-substituted) text, and the whole thing runs in bash."""
+    """Submitting a newline-separated multi-command cheat yields an `arun` chain:
+    each (value-substituted) step is prefixed with `arun`, and the whole thing
+    runs in bash with `arun` on PATH (announce banner before each step)."""
+    import os
     import subprocess
     from pathlib import Path
     from aliasr.tui.build_screen.build_screen import BuildScreen
@@ -375,17 +376,19 @@ async def test_build_submit_assembles_multi_command(app):
         await pilot.pause()
 
     final = captured["cmd"]
-    assert "s(){" in final
-    assert "s 'echo one 10.0.0.5'; echo one 10.0.0.5" in final
-    r = subprocess.run(["bash", "-c", final], capture_output=True, text=True)
+    assert final == "arun echo one 10.0.0.5 ; \\\narun echo two"
+    arun_dir = Path(__file__).resolve().parent.parent / "scripts"
+    env = {**os.environ, "PATH": f"{arun_dir}{os.pathsep}{os.environ['PATH']}"}
+    r = subprocess.run(["bash", "-c", final], capture_output=True, text=True, env=env)
     assert r.returncode == 0, r.stderr
     assert "one 10.0.0.5" in r.stdout and "two" in r.stdout
+    assert "=== echo one 10.0.0.5 ===" in r.stderr  # banner on stderr
 
 
-async def test_build_faketime_tag_wraps_each_command_not_the_banner(app):
-    """A #faketime cheat wraps each executed command in the skewrun guard
-    (keyed off $FAKETIME, targeting the resolved <ip>), but the `=== <cmd> ===`
-    banners still announce the bare command -- the wrapper never appears there."""
+async def test_build_faketime_tag_exports_ar_skew(app):
+    """A #faketime cheat exports AR_SKEW once up front (the resolved <ip>) and
+    prefixes each step with `arun`; the skewrun guard lives in `arun` now, so no
+    inline `if [ -n "$FAKETIME" ]`/`skewrun` appears in the built string."""
     from pathlib import Path
     from aliasr.tui.build_screen.build_screen import BuildScreen
 
@@ -404,13 +407,12 @@ async def test_build_faketime_tag_wraps_each_command_not_the_banner(app):
         await pilot.pause()
 
     final = captured["cmd"]
-    # each executed command is guarded and routed through skewrun <ip> when unskewed
-    assert 'if [ -n "$FAKETIME" ]; then nxc smb 10.0.0.5 -k; else' in final
-    assert "skewrun 10.0.0.5 -- sh -c " in final
-    # banners announce the bare commands; none announces the skewrun wrapper
-    assert "s 'nxc smb 10.0.0.5 -k'" in final
-    assert "s 'certipy find 10.0.0.5 -k'" in final
-    assert "s 'skewrun" not in final
+    assert final.startswith("export AR_SKEW=10.0.0.5 ; \\\n")
+    assert "arun nxc smb 10.0.0.5 -k" in final
+    assert "arun certipy find 10.0.0.5 -k" in final
+    # the skewrun guard now lives in `arun`, not the built command
+    assert "skewrun" not in final
+    assert 'if [ -n "$FAKETIME" ]' not in final
 
 
 async def test_build_submit_ps_encode_skips_bash_separator(app):
@@ -438,7 +440,9 @@ async def test_build_submit_ps_encode_skips_bash_separator(app):
 
 async def test_build_submit_prefix_multi_command_is_valid_shell(app):
     """Regression (code-review finding): aliasr_prefix on an assembled
-    multi-command cheat must produce runnable shell, not 'prefix s(){...}'."""
+    multi-command cheat must produce runnable shell. The prefix now wraps the
+    command inside each `arun` step (`arun env echo a`)."""
+    import os
     import subprocess
     from pathlib import Path
     from aliasr.tui.build_screen.build_screen import BuildScreen
@@ -457,8 +461,10 @@ async def test_build_submit_prefix_multi_command_is_valid_shell(app):
         await pilot.pause()
 
     final = captured["cmd"]
-    assert final.startswith("s(){"), final  # prefix did not corrupt the leading def
-    r = subprocess.run(["bash", "-c", final], capture_output=True, text=True)
+    assert final == "arun env echo a ; \\\narun env echo b", final
+    arun_dir = Path(__file__).resolve().parent.parent / "scripts"
+    env = {**os.environ, "PATH": f"{arun_dir}{os.pathsep}{os.environ['PATH']}"}
+    r = subprocess.run(["bash", "-c", final], capture_output=True, text=True, env=env)
     assert r.returncode == 0, r.stderr
     assert "a" in r.stdout and "b" in r.stdout
 
@@ -524,3 +530,46 @@ async def test_cred_editor_autofills_nt_hash(app):
             editor.query_one("#nt-hash", Input).value
             == "8846F7EAEE8FB117AD06BDD830B7586C"
         )
+
+
+async def _submit_build(app, pilot, screen):
+    """Push a BuildScreen, submit it, and return the dismissed command string."""
+    captured: dict[str, str | None] = {}
+    await app.push_screen(screen, lambda v: captured.__setitem__("cmd", v))
+    await pilot.pause()
+    screen.action_submit()
+    await pilot.pause()
+    return captured["cmd"]
+
+
+async def test_build_multiline_emits_arun_chain(app):
+    """A multi-line, non-local cheat builds into an `arun` chain (no inline s()/separator)."""
+    from pathlib import Path
+    from aliasr.tui.build_screen.build_screen import BuildScreen
+
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        cmd = await _submit_build(
+            app, pilot, BuildScreen("t", "echo a\necho b", Path("x.md"))
+        )
+    assert cmd == "arun echo a ; \\\narun echo b"
+    assert "s(){" not in cmd
+
+
+async def test_build_target_local_emits_bare(app):
+    """A #target/local cheat is injected into a foreign shell, so it emits bare."""
+    from pathlib import Path
+    from aliasr.tui.build_screen.build_screen import BuildScreen
+
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        cmd = await _submit_build(
+            app,
+            pilot,
+            BuildScreen(
+                "t", "echo a\necho b", Path("x.md"),
+                frozenset(), frozenset({"target/local"}),
+            ),
+        )
+    assert cmd == "echo a ; \\\necho b"
+    assert "arun" not in cmd and "AR_SKEW" not in cmd

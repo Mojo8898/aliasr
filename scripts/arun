@@ -1,0 +1,37 @@
+#!/bin/sh
+# arun -- aliasr's command wrapper for multi-line (all-in-one) builds.
+#
+# Installed on PATH by aliasr (see core/config.py). A built multi-line command
+# prefixes each step with `arun`, e.g.
+#
+#   export AR_SKEW=10.0.0.1; \
+#   arun getTGT.py dom/user && export KRB5CCNAME=$(pwd)/user.ccache; \
+#   arun bloodyAD --host dc -k get writable; \
+#   ...
+#
+# arun announces the command (the `=== <cmd> ===` banner) and runs it. When
+# $AR_SKEW is set, it runs the command under `skewrun <target> -- ...` to correct
+# DC clock skew; otherwise it runs the command directly. Only cheats that need it
+# set AR_SKEW (via a leading `export AR_SKEW=...`), so skewrun is never applied
+# blanketly.
+#
+# The command arrives as argv ("$@"), not a quoted string, so any trailing
+# `&& export ...` on the step was already parsed by the parent shell and runs
+# there -- which is how cross-step env (e.g. KRB5CCNAME) persists. `exec` hands
+# the command the process so its exit status propagates to `&&`/`||` chains.
+#
+# The banner goes to STDERR, never stdout: a step may be `... | jq`, `... > file`
+# or `... | tee`, and the banner must not pollute that pipe/redirect. The tool's
+# own stdout flows on untouched.
+
+if [ -t 2 ]; then
+	printf '\n\033[1;36m=== %s ===\033[0m\n' "$*" >&2
+else
+	printf '\n=== %s ===\n' "$*" >&2
+fi
+
+if [ -n "$AR_SKEW" ]; then
+	exec skewrun "$AR_SKEW" -- "$@"
+else
+	exec "$@"
+fi
