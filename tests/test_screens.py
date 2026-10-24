@@ -281,6 +281,41 @@ async def test_variations_panel_fits_and_options_visible(app):
         assert lst.region.height > 0 and lst.region.bottom <= app.size.height
 
 
+async def test_variations_preview_is_head_aware(app, monkeypatch):
+    """A single collapsed auth pick renders per command in the live preview:
+    `-k` on the bloodyAD line, `--use-kcache` on the nxc line, at once."""
+    from textual.widgets import Static
+    from aliasr.tui.build_screen.variations_screen import VariationsScreen
+    from aliasr.core import variations as V
+
+    monkeypatch.setattr(V, "_VARS", {
+        "bloodyAD": {"auth": {"Password": "-p '<password>'", "Kerberos": "-k"}},
+        "nxc": {"auth": {"Password": "-p '<password>'", "Kerberos": "--use-kcache"}},
+    })
+    monkeypatch.setattr(V, "_UNIVERSAL_VARS", {})
+    monkeypatch.setattr(V, "_LOADED", True)
+
+    cmd = "bloodyAD <auth> get\nnxc ldap <auth> --bloodhound"
+    all_vars = V.get_all_variations(cmd, ["auth"])
+    assert list(all_vars) == ["auth"]  # collapsed to one tab
+
+    async with app.run_test(size=(90, 20)) as pilot:
+        await pilot.pause()
+        screen = VariationsScreen(cmd, all_vars)
+        await app.push_screen(screen)
+        await pilot.pause()
+        await pilot.pause()
+
+        screen._preview_values["auth"] = "Kerberos"
+        screen._update_preview()
+        await pilot.pause()
+
+        rendered = screen.query_one("#preview", Static).render()
+        plain = rendered.plain if hasattr(rendered, "plain") else str(rendered)
+        assert "-k get" in plain                      # bloodyAD line
+        assert "--use-kcache --bloodhound" in plain   # nxc line
+
+
 async def test_build_short_command_stays_compact(app):
     """A short command must not inflate the preview box — it should shrink to the
     content it needs (regression: VerticalScroll wrapper filled to max-height)."""
@@ -345,6 +380,37 @@ async def test_build_submit_assembles_multi_command(app):
     r = subprocess.run(["bash", "-c", final], capture_output=True, text=True)
     assert r.returncode == 0, r.stderr
     assert "one 10.0.0.5" in r.stdout and "two" in r.stdout
+
+
+async def test_build_faketime_tag_wraps_each_command_not_the_banner(app):
+    """A #faketime cheat wraps each executed command in the skewrun guard
+    (keyed off $FAKETIME, targeting the resolved <ip>), but the `=== <cmd> ===`
+    banners still announce the bare command -- the wrapper never appears there."""
+    from pathlib import Path
+    from aliasr.tui.build_screen.build_screen import BuildScreen
+
+    captured = {}
+    async with app.run_test(size=(100, 40)) as pilot:
+        await pilot.pause()
+        b = BuildScreen("T", "nxc smb <ip> -k\ncertipy find <ip> -k", Path("x.md"),
+                        tags=frozenset({"faketime"}))
+        await app.push_screen(b, lambda r: captured.__setitem__("cmd", r))
+        await pilot.pause()
+        await pilot.pause()
+        b._exp_prefix = False
+        b._exp_krb = False
+        b._values["ip"] = "10.0.0.5"
+        b.action_submit()
+        await pilot.pause()
+
+    final = captured["cmd"]
+    # each executed command is guarded and routed through skewrun <ip> when unskewed
+    assert 'if [ -n "$FAKETIME" ]; then nxc smb 10.0.0.5 -k; else' in final
+    assert "skewrun 10.0.0.5 -- sh -c " in final
+    # banners announce the bare commands; none announces the skewrun wrapper
+    assert "s 'nxc smb 10.0.0.5 -k'" in final
+    assert "s 'certipy find 10.0.0.5 -k'" in final
+    assert "s 'skewrun" not in final
 
 
 async def test_build_submit_ps_encode_skips_bash_separator(app):

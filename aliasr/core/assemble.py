@@ -42,6 +42,25 @@ def _label(cmd: str) -> str:
     return re.sub(r"\s+", " ", cmd).strip()
 
 
+def faketime_guard(cmd: str, target: str) -> str:
+    """Wrap one command so it only invokes skewrun when not already skewed.
+
+    If ``$FAKETIME`` is set -- i.e. the shell is already running inside a
+    ``skewrun <ip> -- <shell>`` session -- the command runs as-is. Otherwise it
+    runs under ``skewrun <target> --`` so the DC clock skew is corrected for
+    that command. ``sh -c`` carries the command so a pipeline or redirect in it
+    is interpreted by a shell rather than handed to skewrun as literal argv.
+
+    Pass this through ``assemble``'s ``wrap`` so the guard wraps the executed
+    command but never the announce banner (which uses the bare command text).
+    """
+    return 'if [ -n "$FAKETIME" ]; then %s; else skewrun %s -- sh -c %s; fi' % (
+        cmd,
+        shlex.quote(target),
+        shlex.quote(cmd),
+    )
+
+
 def assemble(cmd: str, separator: str, wrap=None) -> str:
     """Stitch logical commands into one ``\\``-continued command with separators.
 

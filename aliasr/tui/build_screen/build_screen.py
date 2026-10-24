@@ -14,7 +14,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Input, OptionList, Static
 from textual_autocomplete import DropdownItem, TargetState
 
-from aliasr.core.assemble import assemble
+from aliasr.core.assemble import assemble, faketime_guard
 from aliasr.core.cheats import get_param_refs
 from aliasr.core.config import BUILD_COLUMNS, BUILD_SEPARATOR, GLOBALS_AUTO_KRB, kb_build_screen
 from aliasr.core.globals import get_history, load_globals, save_global
@@ -559,10 +559,19 @@ class BuildScreen(ModalScreen[str | None]):
             self._prefix_global if (self._exp_prefix and self._prefix_global) else ""
         )
 
+        # `#faketime` cheats: run each command under skewrun to correct DC clock
+        # skew, but only when the shell isn't already skewed (see faketime_guard).
+        # The guard wraps the *executed* command via `wrap`, so it never shows in
+        # the `=== <cmd> ===` announce banners.
+        use_faketime = "faketime" in self._tags
+        skew_target = self._values.get("ip") or self._values.get("dc_ip") or ""
+
         def _wrap(c: str) -> str:
-            if not prefix:
-                return c
-            return prefix.replace("{cmd}", c) if "{cmd}" in prefix else f"{prefix}{c}"
+            if prefix:
+                c = prefix.replace("{cmd}", c) if "{cmd}" in prefix else f"{prefix}{c}"
+            if use_faketime:
+                c = faketime_guard(c, skew_target)
+            return c
 
         if "ps_encode" in self._tags:
             # PowerShell: the separator is bash-only, so prefix the whole command
