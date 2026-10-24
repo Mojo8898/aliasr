@@ -21,9 +21,7 @@ Kerberos = "-k"
 
 [nxc.auth]
 Password = "-p '<password>'"
-"Password + Kerberos" = "-p '<password>' -k"
 "NT hash" = "-H <nt_hash>"
-"NT hash + Kerberos" = "-H <nt_hash> -k"
 Kerberos = "--use-kcache"
 
 [nxc.smb_modules]
@@ -38,15 +36,10 @@ Password = "-p '<password>'"
 "NT hash" = "-hashes <nt_hash>"
 Kerberos = "-k"
 
-["bloodhound.py".auth]
+[rusthound-ce.auth]
 Password = "-p '<password>'"
-"NT hash" = "--hashes :<nt_hash>"
-Kerberos = "-k -no-pass"
-
-[bloodhound-ce-python.auth]
-Password = "-p '<password>'"
-"NT hash" = "--hashes :<nt_hash>"
-Kerberos = "-k -no-pass"
+"NT hash" = "-H <nt_hash>"
+Kerberos = "-k"
 
 ["printerbug.py".auth]
 "Password (NTLM)" = ":'<password>'@<ip>"

