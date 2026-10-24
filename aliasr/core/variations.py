@@ -90,32 +90,67 @@ def load_variations() -> None:
         _LOADED = True
 
 
-def get_all_variations(cmd: str, params: list[str]) -> dict[str, list[Variation]]:
-    """Get variations for parameters, checking both command-specific and universal."""
-    load_variations()
-    head = _head(cmd)
-    per_param = _VARS.get(head, {})
+def _param_table(head: str, param: str) -> dict[str, str] | None:
+    """The {key: value} choices for ``param`` on a command with the given head.
 
-    result = {}
-    for p in params:
-        variations = []
-        
-        # First check command-specific variations (higher priority)
-        if p in per_param:
-            variations.extend([
-                Variation(k, v, p, head, is_universal=False) 
-                for k, v in per_param[p].items()
-            ])
-        
-        # Then check universal variations (only if no command-specific)
-        if not variations and p in _UNIVERSAL_VARS:
-            variations.extend([
-                Variation(k, v, p, "_", is_universal=True)
-                for k, v in _UNIVERSAL_VARS[p].items()
-            ])
-        
-        if variations:
-            result[p] = variations
+    Command-specific wins over universal; None if neither defines it.
+    """
+    return _VARS.get(head, {}).get(param) or _UNIVERSAL_VARS.get(param)
+
+
+def get_all_variations(cmd: str, params: list[str]) -> dict[str, list[Variation]]:
+    """Collapsed, per-line variations for a (possibly multi-line) command.
+
+    Each line is resolved against its *own* command head, so a placeholder on
+    line 4 uses line 4's command's variation set -- not line 1's. A placeholder
+    that appears on several lines is collapsed into a single entry (one tab)
+    whose option keys are those shared by *every* occurrence. The user picks a
+    key once and ``apply_selection`` expands it per line, so one choice renders
+    with each command's own syntax (e.g. Kerberos -> ``-k`` for bloodyAD,
+    ``--use-kcache`` for nxc).
+
+    The returned ``Variation.value`` is the option *key* (not the substituted
+    string); expansion to the per-line value happens in ``apply_selection`` /
+    the live preview via ``lookup_value``. Param and key order follow first
+    appearance.
+    """
+    load_variations()
+
+    wanted = set(params)
+    order: list[str] = []
+    # param -> list of key-lists, one per resolvable occurrence
+    occ: dict[str, list[list[str]]] = {}
+    # param -> True if every occurrence resolves to the same single head
+    heads: dict[str, set[str]] = {}
+
+    for line in cmd.split("\n"):
+        head = _head(line)
+        seen_in_line: set[str] = set()
+        for tok in re.findall(r"<([^>\s]+)>", line):
+            p = tok.split("|", 1)[0]
+            if p not in wanted or p in seen_in_line:
+                continue
+            seen_in_line.add(p)
+            table = _param_table(head, p)
+            if not table:
+                continue
+            if p not in occ:
+                occ[p] = []
+                heads[p] = set()
+                order.append(p)
+            occ[p].append(list(table.keys()))
+            heads[p].add(head)
+
+    result: dict[str, list[Variation]] = {}
+    for p in order:
+        key_lists = occ[p]
+        # Collapse: keep keys present in every occurrence, first-seen order.
+        shared = [k for k in key_lists[0] if all(k in ks for ks in key_lists)]
+        if not shared:
+            continue
+        single_head = next(iter(heads[p])) if len(heads[p]) == 1 else "_"
+        is_univ = single_head == "_" or single_head not in _VARS
+        result[p] = [Variation(k, k, p, single_head, is_universal=is_univ) for k in shared]
 
     return result
 
@@ -141,6 +176,41 @@ def apply_multiple_variations(cmd: str, variations: dict[str, str]) -> str:
     for p, v in variations.items():
         cmd = apply_variation(cmd, p, v)
     return cmd
+
+
+def command_head(line: str) -> str:
+    """Public: the command head (first token) of a single command line."""
+    return _head(line)
+
+
+def lookup_value(head: str, param: str, key: str) -> str | None:
+    """The substitution string for ``key`` of ``param`` on a command with the
+    given head, or None if that command has no such variation/key."""
+    load_variations()
+    table = _param_table(head, param)
+    if table and key in table:
+        return table[key]
+    return None
+
+
+def apply_selection(cmd: str, selected: dict[str, str]) -> str:
+    """Expand chosen variation *keys* into a (possibly multi-line) command.
+
+    Each line is resolved against its own head, so a single pick (e.g.
+    ``auth`` -> ``Kerberos``) renders with each command's own syntax. A line
+    whose command has no entry for the chosen key is left untouched (its
+    placeholder survives to the build screen).
+    """
+    load_variations()
+    out = []
+    for line in cmd.split("\n"):
+        head = _head(line)
+        for param, key in selected.items():
+            value = lookup_value(head, param, key)
+            if value is not None:
+                line = apply_variation(line, param, value)
+        out.append(line)
+    return "\n".join(out)
 
 
 def get_universal_variations() -> dict[str, dict[str, str]]:

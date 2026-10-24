@@ -438,9 +438,9 @@ class MainScreen(Screen[None]):
                 if not selected:
                     return
 
-                # Apply variations to command
-                from aliasr.core.variations import apply_multiple_variations
-                modified_cmd = apply_multiple_variations(cheat.cmd, selected)
+                # Expand the chosen variation keys per line (head-aware).
+                from aliasr.core.variations import apply_selection
+                modified_cmd = apply_selection(cheat.cmd, selected)
 
                 # Now open build screen with modified command
                 from aliasr.tui.build_screen.build_screen import BuildScreen

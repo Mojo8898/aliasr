@@ -9,7 +9,7 @@ from textual.widgets import Input, OptionList, Static, TabbedContent, TabPane, T
 from textual.widgets.option_list import Option
 
 from aliasr.core.config import kb_build_screen, kb_root
-from aliasr.core.variations import Variation, apply_variation
+from aliasr.core.variations import Variation
 
 
 class VariationsScreen(ModalScreen[dict[str, str] | None]):
@@ -112,48 +112,41 @@ class VariationsScreen(ModalScreen[dict[str, str] | None]):
         return self._lists.get(self._active_param())
 
     def _update_preview(self) -> None:
-        """Update the preview with currently highlighted variations."""
+        """Preview the command with the highlighted variation keys expanded.
+
+        Each line is resolved against its own command head, so a single pick
+        renders with that command's own syntax (e.g. ``-k`` vs ``--use-kcache``)
+        across the different commands of a multi-line cheat.
+        """
         if not self._preview:
             return
-        
-        # Build the preview text
-        preview_cmd = self._cmd
-        for param, value in self._preview_values.items():
-            if value:
-                preview_cmd = apply_variation(preview_cmd, param, value)
-        
-        # Style the preview
-        theme = self.app.available_themes.get(self.app.theme)
-        
-        # Create a Text object with styled substituted values
+
         import re
-        text = Text()
+        from aliasr.core.variations import command_head, lookup_value
+
+        theme = self.app.available_themes.get(self.app.theme)
         placeholder_re = re.compile(r"<([^>\s]+)>")
-        
-        pos = 0
-        for match in placeholder_re.finditer(self._cmd):
-            # Add literal text before the placeholder
-            if match.start() > pos:
-                text.append(self._cmd[pos:match.start()])
-            
-            # Get the parameter name from the placeholder
-            token = match.group(1)
-            param_name = token.split("|", 1)[0]
-            
-            # Add the substituted value with styling
-            if param_name in self._preview_values:
-                value = self._preview_values[param_name]
-                text.append(value, style=theme.primary)
-            else:
-                # Keep the original placeholder if no variation selected
-                text.append(match.group(0))
-            
-            pos = match.end()
-        
-        # Add any remaining literal text
-        if pos < len(self._cmd):
-            text.append(self._cmd[pos:])
-        
+        text = Text()
+
+        for li, line in enumerate(self._cmd.split("\n")):
+            if li:
+                text.append("\n")
+            head = command_head(line)
+            pos = 0
+            for match in placeholder_re.finditer(line):
+                if match.start() > pos:
+                    text.append(line[pos:match.start()])
+                param_name = match.group(1).split("|", 1)[0]
+                key = self._preview_values.get(param_name)
+                value = lookup_value(head, param_name, key) if key else None
+                if value is not None:
+                    text.append(value, style=theme.primary)
+                else:
+                    text.append(match.group(0))  # unresolved here -> keep placeholder
+                pos = match.end()
+            if pos < len(line):
+                text.append(line[pos:])
+
         self._preview.update(text)
 
     def _store_active_selection(self) -> None:
