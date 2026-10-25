@@ -43,12 +43,12 @@ powerview <domain>/'<user>'@<dc_fqdn> -k --no-pass
 ```
 rusthound-ce -z -c All -d <domain> -u '<user>' <auth> -f <fqdn> -i <dc_ip>
 
-FAKETIME= bloodhound-ce-ctl -u <bh_url|http://127.0.0.1:8080> -z $(ls -t *_rusthound-ce.zip | head -1) -c -p
+env -u FAKETIME -u LD_PRELOAD bloodhound-ce-ctl -u <bh_url|http://127.0.0.1:8080> -z $(ls -t *_rusthound-ce.zip | head -1) -c -p
 ```
 
 ## bloodhound-ce-ctl
 ```
-FAKETIME= bloodhound-ce-ctl -u <bh_url|http://127.0.0.1:8080> -z <bh_zip> -c -p
+env -u FAKETIME -u LD_PRELOAD bloodhound-ce-ctl -u <bh_url|http://127.0.0.1:8080> -z <bh_zip> -c -p
 ```
 
 ## PowerView connect

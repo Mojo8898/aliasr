@@ -1,6 +1,11 @@
 """Unit tests for assembling a stored cheat into an executable command."""
 
+import pathlib
+import re
+
+import aliasr
 from aliasr.core.assemble import assemble, split_commands
+from aliasr.core.cheats import _parse_markdown
 
 
 def test_split_commands_newlines_and_continuation():
@@ -118,3 +123,34 @@ def test_assemble_local_ignores_skew_target():
 
 def test_assemble_local_single_command():
     assert assemble("echo a", local=True) == "echo a"
+
+
+# ---------- shipped-cheat invariants ----------
+
+# A command assembled into an arun chain is exec'd as argv ("exec $@"), never
+# parsed by a shell, so a leading `NAME=val` env-assignment prefix would be taken
+# as the program name (`exec: NAME=: not found`). Multi-command cheats must strip
+# or unset env via a real command (e.g. `env -u FAKETIME ...`) instead. Regression
+# guard for the `FAKETIME= bloodhound-ce-ctl` upload bug.
+_ENV_ASSIGN_PREFIX = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+
+
+def _shipped_cheats():
+    base = pathlib.Path(aliasr.__file__).parent / "data" / "cheats"
+    for md in sorted(base.rglob("*.md")):
+        cheats, _ = _parse_markdown(md, md.read_text(encoding="utf-8"))
+        for ch in cheats:
+            yield md, ch
+
+
+def test_no_arun_chained_step_starts_with_env_assignment():
+    offenders = []
+    for md, ch in _shipped_cheats():
+        steps = split_commands(ch.cmd)
+        if len(steps) <= 1:
+            continue  # single-command cheats emit bare and are shell-parsed
+        for step in steps:
+            first_token = step.lstrip().split(None, 1)[0] if step.strip() else ""
+            if _ENV_ASSIGN_PREFIX.match(first_token):
+                offenders.append(f"{md.name}: {ch.title!r}: {first_token}")
+    assert not offenders, "arun-chained steps with env-assignment prefix:\n" + "\n".join(offenders)

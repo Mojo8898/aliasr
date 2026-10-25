@@ -7,7 +7,7 @@ Kerberos = " -k -no-pass"
 
 [_.impacket_target_auth]
 Password = ":'<password>'@<fqdn>"
-"NT hash" = "@<fqdn> -hashes <nt_hash>"
+"NT hash" = "@<fqdn> -hashes :<nt_hash>"
 Kerberos = "@<fqdn> -k -no-pass"
 
 # Non-universal
@@ -40,14 +40,6 @@ Kerberos = "-k"
 Password = "-p '<password>'"
 "NT hash" = "-H <nt_hash>"
 Kerberos = "-k"
-
-["printerbug.py".auth]
-"Password (NTLM)" = ":'<password>'@<ip>"
-"NT hash (NTLM)" = "@<ip> -hashes <nt_hash>"
-"Kerberos (NTLM)" = "@<ip> -k -no-pass"
-"Password (Kerberos)" = ":'<password>'@<fqdn>"
-"NT hash (Kerberos)" = "@<fqdn> -hashes <nt_hash>"
-"Kerberos (Kerberos)" = "@<fqdn> -k -no-pass"
 
 [powerview.auth]
 "Password" = ":'<password>'@<dc_fqdn>"
@@ -84,11 +76,6 @@ Certificate = "-u '<user>' --priv-key-pem <key_pem> --cert-pem <cert_pem>"
 Password = "-u '<user>' -p '<password>'"
 "NT hash" = "-u '<user>' -H <nt_hash>"
 Kerberos = "-r <domain>"
-
-["PetitPotam.py".auth]
-Password = "-p '<password>'"
-"NT hash" = "-hashes :<nt_hash>"
-Kerberos = "-k -no-pass"
 
 [sqlcmd.auth]
 Password = "-U '<user>' -P '<password>'"
