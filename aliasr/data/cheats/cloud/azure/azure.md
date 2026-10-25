@@ -3,7 +3,7 @@
 
 ## azure cli authenticate
 ```
-az login -u '<user>' -p <password> | jq .
+az login -u '<user>' -p '<password>' | jq .
 ```
 
 ## azure session enum all in one
@@ -13,7 +13,7 @@ az login -u '<user>' -p <password> | jq .
 
 ## azurehound
 ```
-./azurehound list -u '<user>' -p <password> -t <tenant> -o <outfile>
+./azurehound list -u '<user>' -p '<password>' -t <tenant> -o <outfile>
 ```
 
 ## azurehound using azure-cli session
@@ -23,10 +23,10 @@ az login -u '<user>' -p <password> | jq .
 
 ## roadrecon
 ```
-roadrecon auth -u '<user>' -p <password> && roadrecon gather && roadrecon plugin policies && cat caps.html && roadrecon gui
+roadrecon auth -u '<user>' -p '<password>' && roadrecon gather && roadrecon plugin policies && cat caps.html && roadrecon gui
 ```
 
 ## azurepeass
 ```
-python3 AzurePEAS.py --username '<user>' --password <password>
+python3 AzurePEAS.py --username '<user>' --password '<password>'
 ```

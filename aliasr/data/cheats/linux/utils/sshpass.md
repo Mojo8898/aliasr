@@ -3,5 +3,5 @@
 
 ## sshpass connect via ssh
 ```
-sshpass -p <password> ssh '<user>'@<ip>
+sshpass -p '<password>' ssh '<user>'@<ip>
 ```

