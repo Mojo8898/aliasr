@@ -50,6 +50,28 @@ def split_commands(cmd: str) -> list[str]:
     return [c for c in out if c.strip()]
 
 
+def _ends_backgrounded(step: str) -> bool:
+    """True if ``step`` ends in a lone ``&`` (a background job), not ``&&``.
+
+    Such a step is its own separator, so the chain must not put a ``;`` after it
+    (``cmd & ; next`` is a shell syntax error). A trailing ``&&`` never reaches
+    here -- ``split_commands`` treats it as a continuation and folds the next
+    line in, so a ``&`` at the end is always the backgrounding operator.
+    """
+    s = step.rstrip()
+    return s.endswith("&") and not s.endswith("&&")
+
+
+def _join_steps(parts: list[str]) -> str:
+    """Join chain steps with ``;`` (``\\``-continued), except after a backgrounded
+    step, where the trailing ``&`` already separates it from the next one."""
+    out = parts[0]
+    for p in parts[1:]:
+        sep = " \\\n" if _ends_backgrounded(out) else " ; \\\n"
+        out += sep + p
+    return out
+
+
 def assemble(
     cmd: str,
     *,
@@ -64,6 +86,11 @@ def assemble(
     a ``#target/local`` cheat, which is emitted bare (no ``arun``) because it runs
     on a foreign host. ``wrap``, if given, is applied to each actual command
     (e.g. to prefix ``proxychains``); it wraps the command inside ``arun``.
+
+    A step that ends in ``&`` is backgrounded: the parent shell launches it and
+    moves straight on to the next step (e.g. a slow bloodhound-ce-ctl upload that
+    shouldn't hold up the rest of the chain). ``arun`` is backgrounded with it, so
+    its banner and the job still show up.
     """
     w = wrap or (lambda c: c)
     cmds = split_commands(cmd)
@@ -74,7 +101,7 @@ def assemble(
     if local:
         if len(cmds) <= 1:
             return w(cmd)
-        return " ; \\\n".join(w(c) for c in cmds)
+        return _join_steps([w(c) for c in cmds])
 
     # A single command gets no chain. With no skew it emits bare (nothing to
     # announce). A single #faketime command still needs skew, so it runs under
@@ -91,4 +118,4 @@ def assemble(
     # Unquoted on purpose: a step's trailing `&& export ...` must be seen by the
     # parent shell so its env change survives into later steps.
     parts.extend("arun %s" % w(c) for c in cmds)
-    return " ; \\\n".join(parts)
+    return _join_steps(parts)

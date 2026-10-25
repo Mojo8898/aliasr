@@ -125,6 +125,44 @@ def test_assemble_local_single_command():
     assert assemble("echo a", local=True) == "echo a"
 
 
+# ---------- backgrounded steps (trailing &) ----------
+
+
+def test_assemble_backgrounded_step_not_followed_by_semicolon():
+    # a step ending in `&` is its own separator: the next step must join with a
+    # bare `\`-continuation, never `& ;` (which is a shell syntax error)
+    out = assemble("echo a &\necho b")
+    assert out == "arun echo a & \\\narun echo b"
+    assert "& ;" not in out
+
+
+def test_assemble_backgrounded_mid_chain_only_that_step():
+    out = assemble("echo a\necho b &\necho c")
+    assert out == "arun echo a ; \\\narun echo b & \\\narun echo c"
+
+
+def test_assemble_backgrounded_last_step_keeps_trailing_amp():
+    out = assemble("echo a\necho b &")
+    assert out == "arun echo a ; \\\narun echo b &"
+
+
+def test_assemble_double_amp_is_not_treated_as_background():
+    # a trailing `&&` is a continuation folded in by split_commands, so the step
+    # ends mid-command, not backgrounded -- the next step still joins with `;`
+    out = assemble("echo a &&\necho b\necho c")
+    assert out == "arun echo a &&\necho b ; \\\narun echo c"
+
+
+def test_assemble_backgrounded_step_with_skew():
+    out = assemble("rusthound x\nbloodhound y &\ncertipy z", skew_target="10.0.0.1")
+    assert out == (
+        "export AR_SKEW=10.0.0.1 ; \\\n"
+        "arun rusthound x ; \\\n"
+        "arun bloodhound y & \\\n"
+        "arun certipy z"
+    )
+
+
 # ---------- shipped-cheat invariants ----------
 
 # A command assembled into an arun chain is exec'd as argv ("exec $@"), never
