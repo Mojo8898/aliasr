@@ -10,7 +10,7 @@ bloodyAD --host <fqdn> -d <domain> -u '<user>' -k get writable --partition DOMAI
 
 rusthound-ce -z -c All -d <domain> -u '<user>' -k -f <fqdn> -i <dc_ip>
 
-env -u FAKETIME -u LD_PRELOAD bloodhound-ce-ctl -u <bh_url|http://127.0.0.1:8080> -z $(ls -t *_rusthound-ce.zip | head -1) -c -p > bloodhound-ce-ctl.log 2>&1 &
+env -u FAKETIME -u LD_PRELOAD bloodhound-ce-ctl -u <bh_url|http://127.0.0.1:8080> -z $(ls -t *_rusthound-ce.zip | head -1) -c -p > bloodhound-ce-ctl.log 2>&1 & echo '[*] bloodhound-ce-ctl running in background (tail -f bloodhound-ce-ctl.log)'
 
 certipy find -vulnerable -u '<user>'@<domain> -k -target <fqdn> -dc-ip <dc_ip> -stdout -timeout 2 -ldap-scheme ldap
 
