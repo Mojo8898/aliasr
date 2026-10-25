@@ -1,7 +1,7 @@
 import sqlite3
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
-from threading import RLock, Thread
+from threading import RLock
 
 from aliasr.core.config import CREDS_AUTO_HASH, CREDS_DB
 
@@ -477,8 +477,15 @@ def save_creds(creds: Iterable[Credential]) -> None:
                 pass
             _NXC_KEYS -= removed
 
-    _MEMO = list(unique_creds)
-    Thread(target=_db.write, args=(unique_creds,), daemon=False).start()
+    # Persist, then re-read so _MEMO carries the ids SQLite assigned. Without the
+    # refresh, every row added this session stays id-less in _MEMO and the next
+    # save would delete-and-reinsert it (keep_ids omits it) instead of taking the
+    # stable in-place UPDATE path _db.write is built around — churning the primary
+    # keys Exegol-history references. A synchronous write also avoids the race a
+    # fire-and-forget writer had: two quick saves could land out of order (the
+    # RLock serializes them but not their order), leaving the DB behind _MEMO.
+    _db.write(unique_creds)
+    _MEMO = _db.read()
 
 
 def has_stored_creds() -> bool:

@@ -217,3 +217,57 @@ def test_save_materializes_missing_hash():
     save_creds([Credential("admin", "password", "", "corp.local")])
     stored = {c.username: c for c in load_creds()}
     assert stored["admin"].hash == "8846F7EAEE8FB117AD06BDD830B7586C"
+
+
+def test_save_refreshes_memo_with_assigned_ids(monkeypatch):
+    """After save_creds, _MEMO carries the ids SQLite assigned (not None).
+
+    A stale, id-less _MEMO would make the next save delete-and-reinsert every
+    row added this session instead of updating it in place.
+    """
+    import aliasr.core.creds as creds
+
+    monkeypatch.setattr(creds, "_pull_nxc", lambda rows: rows)
+    _db.clear()
+    creds._MEMO = None
+    creds._NXC_KEYS = set()
+
+    creds.save_creds([Credential("admin", "password", "", "corp.local")])
+    assert all(c.credential_id is not None for c in creds._MEMO)
+
+
+def test_save_keeps_primary_keys_stable_across_saves(monkeypatch):
+    """A credential added mid-session keeps its id when a higher-id row is deleted.
+
+    Regression: a stale id-less _MEMO left the added row out of ``keep_ids``, so
+    it was deleted-then-reinserted on the next save. SQLite's rowid reuse hides
+    that whenever the churned row is the table maximum, but deleting a
+    higher-id row in the same save exposes it — the reinserted row drops to a
+    lower rowid, churning the primary key Exegol-history references.
+    """
+    import aliasr.core.creds as creds
+
+    monkeypatch.setattr(creds, "_pull_nxc", lambda rows: rows)
+    _db.clear()
+    creds._MEMO = None
+    creds._NXC_KEYS = set()
+
+    # Seed two persisted rows (alice=1, zoe=2), then load them in a fresh session.
+    _db.write(
+        [Credential("alice", "pw1", "", "corp.local"),
+         Credential("zoe", "pw9", "", "corp.local")]
+    )
+    creds._MEMO = None
+    loaded = creds.load_creds()
+
+    # Add bob and save; he lands above zoe (id 3).
+    loaded.append(Credential("bob", "pw2", "", "corp.local"))
+    creds.save_creds(loaded)
+    bob_id = next(c.credential_id for c in _db.read() if c.username == "bob")
+
+    # Delete zoe (the higher-id row) and save. bob must keep his id — an in-place
+    # update, not a delete-and-reinsert that would drop him to a reused rowid.
+    survivors = [c for c in creds.load_creds() if c.username != "zoe"]
+    creds.save_creds(survivors)
+    still = next(c.credential_id for c in _db.read() if c.username == "bob")
+    assert still == bob_id
