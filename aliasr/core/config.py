@@ -1,6 +1,7 @@
 import os
 import tomllib
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -185,7 +186,11 @@ def _deep_update(base: dict[str, Any], override: dict[str, Any]) -> dict[str, An
 # ---------- IO ----------
 
 
+@lru_cache(maxsize=1)
 def _load_defaults() -> dict[str, Any]:
+    # The packaged config.toml is immutable at runtime, so parse it once. Callers
+    # only read from the result or shallow-copy before mutating (see _build_config,
+    # _deep_update), never mutating the cached dict in place.
     with (PKG_DIR / "data" / "config.toml").open("rb") as f:
         return tomllib.load(f)
 
