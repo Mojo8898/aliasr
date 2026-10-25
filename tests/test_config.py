@@ -83,6 +83,20 @@ def test_inject_adds_missing_section(tmp_path):
     assert data["creds"]["mask"] is False
 
 
+def test_inject_adds_missing_nested_subtable(tmp_path):
+    # Regression: a config that has [keybindings.table] but is missing the
+    # nested `copy` sub-table must get a real [keybindings.table.copy] section,
+    # not a corrupt `copy = ""` scalar that crashes kb_table_copy() on reload.
+    cfg = tmp_path / "config.toml"
+    cfg.write_text("[keybindings.table]\nedit_row = \"e\"\n")
+    config.inject_missing_defaults(cfg, ["keybindings.table.copy"])
+    with cfg.open("rb") as f:
+        data = tomllib.load(f)
+    copy = data["keybindings"]["table"]["copy"]
+    assert isinstance(copy, dict) and "col_1" in copy  # real sub-table, not ""
+    assert data["keybindings"]["table"]["edit_row"] == "e"  # preserved
+
+
 def test_inject_preserves_comments(tmp_path):
     cfg = tmp_path / "config.toml"
     cfg.write_text("[creds]\n# keep me\nmask = false\n")

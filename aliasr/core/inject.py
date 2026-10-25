@@ -58,8 +58,8 @@ def _tty_inject(payload: str) -> bool:
         new[3] &= ~(termios.ECHO | termios.ICANON)
         try:
             termios.tcsetattr(fd, termios.TCSANOW, new)
-            for ch in payload:
-                fcntl.ioctl(fd, termios.TIOCSTI, ch)
+            for byte in payload.encode("utf-8"):
+                fcntl.ioctl(fd, termios.TIOCSTI, bytes([byte]))
         except OSError:
             print("""========== OSError ============
 aliasr needs TIOCSTI enabled for running
@@ -211,5 +211,4 @@ def inject(
     # than type a command the kernel would truncate mid-flight.
     if len(cmd.encode("utf-8")) + (1 if execute else 0) > _TTY_LIMIT:
         return _fallback_clipboard(cmd)
-    _deliver_inline(cmd, using_tmux, execute, pane_index)
-    return 0
+    return 0 if _deliver_inline(cmd, using_tmux, execute, pane_index) else 1

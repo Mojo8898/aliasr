@@ -98,3 +98,43 @@ def test_tmux_inherits_env_when_no_skew(monkeypatch):
 
     assert tmux._tmux("display-message", "-p", "#{pane_index}") == "2"
     assert captured["env"] is None
+
+
+# ---------- get_panes (base-index independence) ----------
+
+
+def _panes(monkeypatch, listing: str | None):
+    monkeypatch.setattr(tmux, "_tmux", lambda *a: listing)
+
+
+def test_get_panes_base_index_1_active_first_wraps_to_last(monkeypatch):
+    # pane-base-index 1: panes 1,2; active is the first -> previous wraps to 2
+    # (the arithmetic bug produced the nonexistent pane "0" here).
+    _panes(monkeypatch, "1:1\n2:0")
+    assert tmux.get_panes() == ("1", "2")
+
+
+def test_get_panes_base_index_1_active_second(monkeypatch):
+    _panes(monkeypatch, "1:0\n2:1")
+    assert tmux.get_panes() == ("2", "1")
+
+
+def test_get_panes_base_index_0_active_first_wraps_to_last(monkeypatch):
+    _panes(monkeypatch, "0:1\n1:0\n2:0")
+    assert tmux.get_panes() == ("0", "2")
+
+
+def test_get_panes_noncontiguous_after_close(monkeypatch):
+    # Panes 1 and 3 (pane 2 was closed); predecessor of 1 wraps to 3.
+    _panes(monkeypatch, "1:1\n3:0")
+    assert tmux.get_panes() == ("1", "3")
+
+
+def test_get_panes_single_pane(monkeypatch):
+    _panes(monkeypatch, "1:1")
+    assert tmux.get_panes() == ("1", "1")
+
+
+def test_get_panes_no_tmux(monkeypatch):
+    _panes(monkeypatch, None)
+    assert tmux.get_panes() == (None, None)

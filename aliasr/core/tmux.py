@@ -60,19 +60,36 @@ def get_current_pane() -> str | None:
 
 
 def get_panes() -> tuple[str | None, str | None]:
-    """Return (current_pane, previous_pane) indices as strings."""
-    s = _tmux("display-message", "-p", "#{pane_index}:#{window_panes}")
-    if not s or ":" not in s:
-        return None, None
-    try:
-        cur, total = (int(x) for x in s.split(":", 1))
-    except ValueError:
+    """Return (current_pane, previous_pane) indices as strings.
+
+    Previous is the pane before the active one in index order, wrapping to the
+    last. Indices are read from tmux rather than computed, so this stays correct
+    under any ``pane-base-index`` (1-based is common) and even with
+    non-contiguous indices left behind after a pane is closed.
+    """
+    out = _tmux("list-panes", "-F", "#{pane_index}:#{pane_active}")
+    if not out:
         return None, None
 
-    if total <= 1:
+    indices: list[int] = []
+    cur: int | None = None
+    for line in out.splitlines():
+        idx, _, active = line.partition(":")
+        try:
+            n = int(idx)
+        except ValueError:
+            continue
+        indices.append(n)
+        if active == "1":
+            cur = n
+
+    if cur is None or not indices:
+        return None, None
+    if len(indices) == 1:
         return str(cur), str(cur)
 
-    prev = cur - 1 if cur > 0 else total - 1
+    indices.sort()
+    prev = indices[indices.index(cur) - 1]  # index-1 == -1 wraps to the last pane
     return str(cur), str(prev)
 
 

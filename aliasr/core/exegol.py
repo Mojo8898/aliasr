@@ -43,7 +43,8 @@ def _read_active_vars(path: Path | None) -> dict[str, str]:
     for line in lines:
         m = _ACTIVE_RE.match(line.strip())
         if m:
-            vals[m.group(1)] = m.group(2)
+            # Reverse the '\'' escaping applied by _write_vars on the way out.
+            vals[m.group(1)] = m.group(2).replace("'\\''", "'")
     return vals
 
 
@@ -68,7 +69,8 @@ def _write_vars(mapping: dict[str, str], path: Path | None) -> None:
                 name = m.group(1)
                 if name in mapping:
                     value = mapping[name]
-                    lines[i] = f"export {name}='{value}'\n" if value else f"unset {name}\n"
+                    safe = value.replace("'", "'\\''")
+                    lines[i] = f"export {name}='{safe}'\n" if value else f"unset {name}\n"
             p.write_text("".join(lines), encoding="utf-8")
         except OSError:
             pass

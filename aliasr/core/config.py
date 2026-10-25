@@ -487,9 +487,8 @@ def inject_missing_defaults(path: Path, missing: list[str]) -> None:
     for dotted in missing:
         parts = dotted.split(".")
         value = _default_for(dotted)
-        if len(parts) == 1:
-            if isinstance(value, dict):
-                new_sections.append(_toml_section(parts[0], value))
+        if isinstance(value, dict):
+            new_sections.append(_toml_section(dotted, value))
             continue
         header = f"[{'.'.join(parts[:-1])}]"
         inserts.setdefault(header, []).append(f"{parts[-1]} = {_toml_value(value)}\n")

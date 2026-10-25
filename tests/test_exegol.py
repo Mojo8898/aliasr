@@ -25,6 +25,25 @@ def test_set_then_read_roundtrip(tmp_path):
     assert "export DOMAIN='corp.local'" in text
 
 
+def test_single_quote_in_value_is_escaped(tmp_path):
+    # A password containing ' must not break the single-quoted export line,
+    # which would abort every shell sourcing the shared profile.sh.
+    import subprocess
+
+    prof = tmp_path / "profile.sh"
+    exegol.set_current_credential(
+        Credential("admin", "P@ss'word", "", "corp.local"), prof
+    )
+
+    # The file must source cleanly in a real shell...
+    r = subprocess.run(["bash", "-c", f". {prof}"], capture_output=True)
+    assert r.returncode == 0, r.stderr
+
+    # ...and the value must come back intact.
+    cur = exegol.current_credential(prof)
+    assert cur.password == "P@ss'word"
+
+
 def test_updates_existing_template_lines_only(tmp_path):
     prof = tmp_path / "profile.sh"
     prof.write_text(

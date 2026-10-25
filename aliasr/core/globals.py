@@ -252,7 +252,7 @@ def save_globals_order(key_order: list[str]) -> None:
     vals = {k: _STATE_RAW[k] for k in _STATE_RAW.keys()}
     _STATE_RAW.clear()
     for k in order:
-        _STATE_RAW[k] = _normalize_history_list(vals[k])
+        _STATE_RAW[k] = _normalize_history_list(vals[k], preserve_ws=k in _PRESERVE_WS_KEYS)
     _persist_from_cache()
 
 

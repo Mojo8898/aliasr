@@ -139,3 +139,49 @@ def test_multibyte_under_byte_limit_is_typed_inline(monkeypatch):
     cmd = "€" * (ij._TTY_LIMIT // 3 - 1)  # comfortably under the byte limit
     ij.inject(cmd, execute=False)
     assert sent["p"] == cmd
+
+
+def test_tty_inject_pushes_full_utf8_bytes(monkeypatch):
+    """Each TIOCSTI ioctl injects a single byte, so a multi-byte char must be
+    sent as all of its UTF-8 bytes — not truncated to the first."""
+    import builtins
+    import fcntl
+    import termios
+
+    pushed = bytearray()
+
+    class _FakeTTY:
+        def fileno(self):
+            return 0
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    real_open = builtins.open
+    monkeypatch.setattr(
+        builtins,
+        "open",
+        lambda *a, **k: _FakeTTY() if a and a[0] == "/dev/tty" else real_open(*a, **k),
+    )
+    monkeypatch.setattr(termios, "tcgetattr", lambda fd: [0, 0, 0, 0, 0, 0, []])
+    monkeypatch.setattr(termios, "tcsetattr", lambda *a: None)
+    monkeypatch.setattr(fcntl, "ioctl", lambda fd, req, arg: pushed.extend(arg))
+
+    assert ij._tty_inject("café\n") is True
+    assert bytes(pushed) == "café\n".encode("utf-8")
+
+
+def test_inline_delivery_failure_returns_nonzero(monkeypatch):
+    """A failed inline delivery (e.g. TIOCSTI disabled) must report non-zero,
+    not a bogus success, so callers checking the exit code aren't misled."""
+    monkeypatch.setattr(ij, "_tty_inject", lambda _p: False)
+    monkeypatch.setattr(ij, "_tmux_send_keys", lambda *a, **k: False)
+    assert ij.inject("echo hi", using_tmux=False, execute=True) == 1
+
+
+def test_inline_delivery_success_returns_zero(monkeypatch):
+    monkeypatch.setattr(ij, "_tty_inject", lambda _p: True)
+    assert ij.inject("echo hi", using_tmux=False, execute=True) == 0

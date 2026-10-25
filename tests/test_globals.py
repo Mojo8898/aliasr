@@ -28,6 +28,15 @@ def test_other_globals_still_strip_end_to_end():
     assert g.load_globals().get("ip") == "10.0.0.1"
 
 
+def test_reorder_preserves_prefix_whitespace():
+    # Reordering the globals grid re-normalizes every value; aliasr_prefix must
+    # keep its significant trailing space, not get glued to the next command.
+    g.save_global("aliasr_prefix", "proxychains -q ")
+    g.save_global("ip", "10.0.0.1")
+    g.save_globals_order(["ip", "aliasr_prefix"])
+    assert g.load_globals().get("aliasr_prefix") == "proxychains -q "
+
+
 def test_canonicalize_preserves_prefix_whitespace():
     canon = g._canonicalize({"aliasr_prefix": ["proxychains -q "], "ip": ["  1.2.3.4  "]})
     assert canon["aliasr_prefix"] == ["proxychains -q "]
