@@ -5,8 +5,3 @@
 ```
 rpcclient -U '' -N <ip>
 ```
-
-## rpcclient authenticate
-```
-rpcclient <ip>
-```

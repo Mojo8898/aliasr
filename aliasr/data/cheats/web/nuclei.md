@@ -1,4 +1,4 @@
-# ffuf
+# nuclei
 #target/remote #os/linux #cat/web
 
 ## nuclei basic scan

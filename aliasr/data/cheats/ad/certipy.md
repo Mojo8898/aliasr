@@ -23,7 +23,7 @@ certipy auth -pfx <pfx> -username '<user>' -domain <domain> -dc-ip <dc_ip>
 
 ## certipy remove password from .pfx
 ```
-certipy cert -pfx <protected_pfx> password <password> -export -out <unprotected_pfx|nopass.pfx>
+certipy cert -pfx <protected_pfx> -password <password> -export -out <unprotected_pfx|nopass.pfx>
 ```
 
 ## certipy dump info from .pfx
