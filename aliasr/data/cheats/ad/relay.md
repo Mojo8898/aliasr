@@ -5,3 +5,8 @@
 ```
 rpcdump.py <ip> | egrep 'MS-RPRN|MS-PAR'
 ```
+
+## powerview relay
+```
+powerview <ip> --relay
+```
