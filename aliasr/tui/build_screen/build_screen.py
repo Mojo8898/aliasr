@@ -99,7 +99,6 @@ class BuildScreen(ModalScreen[str | None]):
         md_path: Path,
         tags: frozenset[str] = frozenset(),
         cheat_tags: frozenset[str] = frozenset(),
-        callback=None,
     ) -> None:
         super().__init__()
         self._title = title
@@ -107,7 +106,6 @@ class BuildScreen(ModalScreen[str | None]):
         self._md_path = md_path
         self._tags = tags
         self._cheat_tags = cheat_tags
-        self._callback = callback
 
         # Parse parameters and build initial values
         self._params: dict[str, bool] = {}  # {name: is_cred}

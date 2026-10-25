@@ -209,7 +209,7 @@ def inject(
     # What we'd type is the command plus a trailing newline when we execute it; if
     # that would overflow the tty input buffer, hand off via the clipboard rather
     # than type a command the kernel would truncate mid-flight.
-    if len(cmd) + (1 if execute else 0) > _TTY_LIMIT:
+    if len(cmd.encode("utf-8")) + (1 if execute else 0) > _TTY_LIMIT:
         return _fallback_clipboard(cmd)
     _deliver_inline(cmd, using_tmux, execute, pane_index)
     return 0

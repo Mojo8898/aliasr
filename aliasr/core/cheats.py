@@ -30,13 +30,12 @@ _PARAM_HEADER_RE = re.compile(r"^\s*-\s*([A-Za-z0-9_:-]+)\s*$")
 # Bump when the pickled cache layout or the Cheat schema changes (e.g. a renamed
 # field), so an old cache is rebuilt even though the source files are unchanged
 # — the file-mtime signature alone wouldn't catch a code-side change.
-_CACHE_VERSION = 2
+_CACHE_VERSION = 3
 
 _ALL: list[Cheat] = []
 _TAGS: list[str] = []
 _TAG_TO: dict[str, list[Cheat]] = {}
 _REFS_BY_FILE: dict[str, dict[str, list[str]]] = {}
-_DEFAULTS_BY_FILE: dict[str, dict[str, str]] = {}
 
 
 # ---------- Parsing ----------
@@ -58,11 +57,10 @@ def _scan_md_files() -> list[Path]:
 
 def _parse_markdown(
     path: Path, content: str
-) -> tuple[list[Cheat], dict[str, list[str]], dict[str, str]]:
-    """Parse a markdown file for cheats, references, and defaults."""
+) -> tuple[list[Cheat], dict[str, list[str]]]:
+    """Parse a markdown file for cheats and references."""
     cheats: list[Cheat] = []
     refs: dict[str, list[str]] = defaultdict(list)
-    defaults: dict[str, str] = {}
 
     # State tracking
     cheat_tags: set[str] = set()
@@ -142,16 +140,7 @@ def _parse_markdown(
             else:
                 buf.append(line.rstrip("\n"))
 
-    # Extract defaults from placeholders in commands
-    for ch in cheats:
-        for tok in _PH_RE.findall(ch.cmd):
-            name, *rest = tok.split("|", 1)
-            if rest and name not in defaults:
-                v = rest[0].strip()
-                if v:
-                    defaults[name] = v
-
-    return cheats, refs, defaults
+    return cheats, refs
 
 
 # ---------- Caching ----------
@@ -159,11 +148,10 @@ def _parse_markdown(
 
 def _build_from_files(files: list[Path]) -> None:
     """Build cheats index from markdown files."""
-    global _ALL, _TAGS, _TAG_TO, _REFS_BY_FILE, _DEFAULTS_BY_FILE
+    global _ALL, _TAGS, _TAG_TO, _REFS_BY_FILE
 
     all_cheats: list[Cheat] = []
     refs_by_file: dict[str, dict[str, list[str]]] = {}
-    defaults_by_file: dict[str, dict[str, str]] = {}
 
     # Parse all files
     for p in files:
@@ -172,10 +160,9 @@ def _build_from_files(files: list[Path]) -> None:
         except Exception:
             continue
 
-        cheats, refs, defaults = _parse_markdown(p, content)
+        cheats, refs = _parse_markdown(p, content)
         all_cheats.extend(cheats)
         refs_by_file[str(p)] = refs
-        defaults_by_file[str(p)] = defaults
 
     # Build tag index
     tag_to: dict[str, list[Cheat]] = defaultdict(list)
@@ -191,7 +178,6 @@ def _build_from_files(files: list[Path]) -> None:
     _TAGS = tags
     _TAG_TO = tag_to
     _REFS_BY_FILE = refs_by_file
-    _DEFAULTS_BY_FILE = defaults_by_file
 
 
 def _cache_path() -> Path:
@@ -240,7 +226,6 @@ def _save_cache(cache_path: Path, signature: tuple[tuple[str, int, int], ...]) -
         "tags": _TAGS,
         "tag_to_indices": tag_to_indices,  # Store indices, not objects
         "refs_by_file": _REFS_BY_FILE,
-        "defaults_by_file": _DEFAULTS_BY_FILE,
     }
 
     # Atomic write
@@ -261,7 +246,7 @@ def load_cheats() -> None:
     refreshed. This keeps edits/additions/deletions from being masked by a stale
     pickle while leaving the common (unchanged) path a cheap scan-and-unpickle.
     """
-    global _ALL, _TAGS, _TAG_TO, _REFS_BY_FILE, _DEFAULTS_BY_FILE
+    global _ALL, _TAGS, _TAG_TO, _REFS_BY_FILE
 
     cp = _cache_path()
     files = _scan_md_files()
@@ -285,7 +270,6 @@ def load_cheats() -> None:
             _ALL = blob["all"]
             _TAGS = blob["tags"]
             _REFS_BY_FILE = blob["refs_by_file"]
-            _DEFAULTS_BY_FILE = blob["defaults_by_file"]
 
             # Rebuild _TAG_TO from indices
             tag_to_indices = blob.get("tag_to_indices", {})
@@ -325,8 +309,3 @@ def get_loaded_cheats() -> list[Cheat]:
 def get_param_refs(md_path: Path, param: str) -> list[str]:
     """Get reference values for a parameter in a specific markdown file."""
     return _REFS_BY_FILE.get(str(md_path), {}).get(param, [])
-
-
-def get_param_default(md_path: Path, param: str) -> str | None:
-    """Get default value for a parameter in a specific markdown file."""
-    return _DEFAULTS_BY_FILE.get(str(md_path), {}).get(param)

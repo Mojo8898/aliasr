@@ -451,7 +451,6 @@ class MainScreen(Screen[None]):
                         Path(cheat.path),
                         cheat.build_tags,
                         cheat.cheat_tags,
-                        callback=_build_done,
                     ),
                     _build_done,
                 )
@@ -468,7 +467,6 @@ class MainScreen(Screen[None]):
                     Path(cheat.path),
                     cheat.build_tags,
                     cheat.cheat_tags,
-                    callback=_build_done,
                 ),
                 _build_done,
             )

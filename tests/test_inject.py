@@ -113,3 +113,29 @@ def test_review_one_byte_over_goes_to_clipboard(monkeypatch):
     cmd = "A" * (ij._TTY_LIMIT + 1)
     ij.inject(cmd, execute=False)
     assert copied["c"] == cmd
+
+
+def test_multibyte_over_byte_limit_goes_to_clipboard(monkeypatch):
+    """The cap is measured in bytes, not characters: a command that fits under
+    the limit by char count but overflows it in UTF-8 must still be handed off,
+    or the kernel would truncate it mid-command."""
+    copied = {}
+    monkeypatch.setattr(ij, "copy_to_clipboard", lambda c: copied.setdefault("c", c) or 0)
+    monkeypatch.setattr(ij, "_tty_inject", _no_tty)
+
+    # "€" is 1 char but 3 UTF-8 bytes: well under the char limit, over the byte limit.
+    cmd = "€" * (ij._TTY_LIMIT // 3 + 1)
+    assert len(cmd) <= ij._TTY_LIMIT < len(cmd.encode("utf-8"))
+    ij.inject(cmd, execute=False)
+    assert copied["c"] == cmd
+
+
+def test_multibyte_under_byte_limit_is_typed_inline(monkeypatch):
+    """A multibyte command that fits the byte budget is still typed inline."""
+    sent = {}
+    monkeypatch.setattr(ij, "_tty_inject", lambda p: sent.setdefault("p", p) or True)
+    monkeypatch.setattr(ij, "copy_to_clipboard", _no_clipboard)
+
+    cmd = "€" * (ij._TTY_LIMIT // 3 - 1)  # comfortably under the byte limit
+    ij.inject(cmd, execute=False)
+    assert sent["p"] == cmd
