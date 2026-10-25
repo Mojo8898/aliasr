@@ -1,7 +1,7 @@
 # KeePass
 #target/local #os/linux #cat/utils
 
-## Crack .kdbx file
+## keepass crack .kdbx file
 ```
 keepass2john <kdbx> > keepass.hash
 
@@ -14,7 +14,7 @@ cat keepass.csv | cut -d'"' -f'4,6,8' | tail -n +2 | tr '"' ':'
 cat keepass.csv
 ```
 
-## Decrypt .kdbx file using provided key
+## keepass decrypt .kdbx file using provided key
 ```
 keepassxc-cli export <kdbx> -k <key> --no-password -f csv
 ```

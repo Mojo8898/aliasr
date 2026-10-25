@@ -8,7 +8,7 @@ sh -c 't=$(mktemp); nxc smb <ip> --generate-hosts-file "$t"; cat "$t" >> /etc/ho
 nxc smb <ip> --generate-krb5-file /etc/krb5.conf
 ```
 
-## Generate/append krb5 config
+## generate/append krb5 config
 ```
 nxc smb <ip> --generate-krb5-file /etc/krb5.conf
 ```

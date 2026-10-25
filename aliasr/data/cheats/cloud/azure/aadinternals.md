@@ -1,7 +1,7 @@
 # aadinternals
 #target/remote #os/linux #cat/cloud #cat/azure
 
-## Authenticate
+## aadinternals authenticate
 ```
 Get-AADIntAccessTokenForAADGraph -SaveToCache;Get-AADIntCache
 ```

@@ -1,7 +1,7 @@
 # sshpass
 #target/local #os/linux #cat/utils
 
-## Connect via SSH
+## sshpass connect via ssh
 ```
 sshpass -p <password> ssh '<user>'@<ip>
 ```

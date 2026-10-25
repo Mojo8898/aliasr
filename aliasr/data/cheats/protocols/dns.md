@@ -1,17 +1,17 @@
 # DNS
 #target/remote #os/linux #proto/dns #port/53
 
-## Query records
+## dig query
 ```
 dig any @<ip> <domain> +short
 ```
 
-## Reverse lookup
+## dig reverse ptr lookup
 ```
 dig -x @<ip> <domain> +short
 ```
 
-## Zone transfer
+## dig zone transfer
 ```
 dig axfr @<ip> <domain>
 ```

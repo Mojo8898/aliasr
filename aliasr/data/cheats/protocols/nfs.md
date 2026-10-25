@@ -1,13 +1,13 @@
 # NFS
 #target/remote #os/linux #proto/nfs #port/2049
 
-## Mount remote share
+## mount nfs
 ```
 mkdir nfs
 mount -t nfs <ip>:<share> nfs -o nolock
 ```
 
-## Mount & Copy
+## mount and copy nfs
 ```
 mkdir temp
 mount -t nfs <ip>:<share> temp -o nolock
@@ -16,7 +16,7 @@ umount temp
 rm -r temp
 ```
 
-## Mount remote share version 2
+## mount version 2
 ```
 mkdir nfs
 mount -t nfs -o vers=2 <ip>:<share> nfs -o nolock

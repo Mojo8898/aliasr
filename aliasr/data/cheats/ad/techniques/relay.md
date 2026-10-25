@@ -1,7 +1,7 @@
 # Relay
 #target/remote #os/linux #cat/ad
 
-## PowerView relay
+## powerview relay
 ```
 powerview <ip> --relay
 ```

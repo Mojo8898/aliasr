@@ -1,17 +1,17 @@
 # ffuf
 #target/remote #os/linux #cat/web
 
-## Fuzz endpoints
+## ffuf fuzz endpoints
 ```
 u='<url>'; ffuf -u "${u%/}/FUZZ" -w <wordlist|/usr/share/seclists/Discovery/Web-Content/raft-small-words.txt> -c -ac
 ```
 
-## Fuzz vhosts
+## ffuf fuzz vhosts
 ```
 ffuf -u '<url>' -H 'Host: FUZZ.<domain>' -w <wordlist|/usr/share/seclists/Discovery/DNS/services-names.txt> -c -ac
 ```
 
-## Fuzz extensions
+## ffuf fuzz extensions
 ```
 u='<url>'; ffuf -u "${u%/}/indexFUZZ" -w <wordlist|/usr/share/seclists/Discovery/Web-Content/web-extensions.txt> -c -ac
 ```

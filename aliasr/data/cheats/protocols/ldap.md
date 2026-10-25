@@ -1,19 +1,19 @@
 # LDAP
 #target/remote #os/linux #cat/ad #proto/ldap #port/389
 
-## LDAP anonymous bind
+## ldap anonymous bind
 ```
 nxc ldap <ip> -u '' -p ''
 ```
 
-## SMB guest/anonymous access
+## smb guest/anonymous access
 ```
 nxc smb <ip> -u 'a' -p '' --shares --rid-brute 10000
 
 nxc smb <ip> -u '' -p '' --shares --rid-brute 10000
 ```
 
-## LDAP all in one
+## ldap all in one
 #faketime
 ```
 getTGT.py <domain>/'<user>'<impacket_auth> && export KRB5CCNAME=$(pwd)/'<user>'.ccache
@@ -51,12 +51,12 @@ env -u FAKETIME -u LD_PRELOAD bloodhound-ce-ctl -u <bh_url|http://127.0.0.1:8080
 env -u FAKETIME -u LD_PRELOAD bloodhound-ce-ctl -u <bh_url|http://127.0.0.1:8080> -z <bh_zip> -c -p
 ```
 
-## PowerView connect
+## powerview connect
 ```
 powerview <domain>/'<user>'<auth> --no-cache
 ```
 
-## Powerview anonymous connect
+## powerview anonymous connect
 ```
 powerview <fqdn> --no-cache
 ```

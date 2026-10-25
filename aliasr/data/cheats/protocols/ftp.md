@@ -11,7 +11,7 @@ ftp ftp://<user>:<password>@<ip>
 lftp -u '<user>,<password>' <ip> -e 'ls -al'
 ```
 
-## lftp TLS connect
+## lftp tls connect
 ```
 lftp -u '<user>,<password>' -e 'set ftp:ssl-force true; set ftp:ssl-protect-data true; set ssl:verify-certificate no' <fqdn>
 ```

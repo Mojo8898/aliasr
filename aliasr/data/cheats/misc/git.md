@@ -1,7 +1,7 @@
 # git
 #target/local #os/linux
 
-## Git repo enum
+## git repo enum
 ```
 printf "=== Status ===\n"
 git status
