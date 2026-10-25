@@ -573,3 +573,22 @@ async def test_build_target_local_emits_bare(app):
         )
     assert cmd == "echo a ; \\\necho b"
     assert "arun" not in cmd and "AR_SKEW" not in cmd
+
+
+async def test_build_single_faketime_uses_ip_global_for_skew(app):
+    """Regression: a single #faketime cheat whose command has no <ip>/<dc_ip>
+    placeholder (e.g. a lone getTGT) must still get a skew target from the
+    engagement global, not silently run unskewed. AR_SKEW is scoped to the one
+    arun call, not exported."""
+    from pathlib import Path
+    from aliasr.tui.build_screen.build_screen import BuildScreen
+
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        app.globals["ip"] = "10.0.0.9"  # engagement DC; not referenced by the command
+        cmd = await _submit_build(
+            app, pilot,
+            BuildScreen("t", "getTGT.py dom/user", Path("x.md"), frozenset({"faketime"})),
+        )
+    assert cmd == "AR_SKEW=10.0.0.9 arun getTGT.py dom/user"
+    assert "export AR_SKEW" not in cmd

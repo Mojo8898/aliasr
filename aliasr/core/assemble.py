@@ -12,11 +12,16 @@ clock skew. The command is emitted **unquoted**, so a trailing ``&& export ...``
 is parsed by the *parent* shell and its side effects persist across steps (a
 standalone ``arun`` runs each step in a child and cannot mutate the parent env).
 
-Two multi-line cases skip ``arun`` and emit bare, ``\\``-continued commands:
+Commands that skip the ``arun`` chain and emit bare, ``\\``-continued:
 
-* a single-command cheat (nothing to announce or chain), and
+* a single-command cheat with no skew (nothing to announce or chain), and
 * a ``#target/local`` cheat -- it's injected into a foreign ssh/winrm shell on
-  the target, which won't have ``arun``/``skewrun`` installed.
+  the target, which won't have ``arun``/``skewrun`` installed (so it emits bare
+  even under ``#faketime``; skew can't be corrected on the remote host).
+
+A single-command ``#faketime`` cheat (e.g. a lone ``getTGT.py``) still needs skew,
+so it runs under one ``arun`` with ``AR_SKEW`` scoped to that call
+(``AR_SKEW=<target> arun <cmd>``) rather than emitting bare.
 """
 
 import shlex
@@ -63,13 +68,22 @@ def assemble(
     w = wrap or (lambda c: c)
     cmds = split_commands(cmd)
 
-    # Single command, or a cheat destined for a foreign shell: emit bare. No
-    # arun/skewrun machinery -- just the (optionally wrapped) commands, stitched
-    # into one `\`-continued command so every inject path delivers them as one.
-    if local or len(cmds) <= 1:
+    # A `#target/local` cheat is injected into a foreign ssh/winrm shell with no
+    # arun/skewrun installed, so it always emits bare -- even when #faketime is set
+    # (skew can't be corrected on the remote host anyway).
+    if local:
         if len(cmds) <= 1:
             return w(cmd)
         return " ; \\\n".join(w(c) for c in cmds)
+
+    # A single command gets no chain. With no skew it emits bare (nothing to
+    # announce). A single #faketime command still needs skew, so it runs under
+    # arun with AR_SKEW scoped to that one call (the prefix assignment never leaks
+    # into the parent env, and arun still skips skewrun when FAKETIME is set).
+    if len(cmds) <= 1:
+        if skew_target:
+            return "AR_SKEW=%s arun %s" % (shlex.quote(skew_target), w(cmd))
+        return w(cmd)
 
     parts: list[str] = []
     if skew_target:

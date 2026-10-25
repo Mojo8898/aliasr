@@ -74,9 +74,31 @@ def test_assemble_no_skew_has_no_ar_skew():
     assert "AR_SKEW" not in assemble("echo a\necho b")
 
 
-def test_assemble_skew_ignored_for_single_command():
-    # single command never enters the arun chain, so AR_SKEW is irrelevant
-    assert assemble("echo a", skew_target="10.0.0.1") == "echo a"
+def test_assemble_single_command_skew_scopes_ar_skew_to_one_arun():
+    # a lone #faketime command (e.g. getTGT) still needs skew: AR_SKEW is scoped
+    # to the single arun call rather than exported, and nothing leaks to the parent
+    out = assemble("getTGT.py dom/user", skew_target="10.0.0.1")
+    assert out == "AR_SKEW=10.0.0.1 arun getTGT.py dom/user"
+    assert not out.startswith("export ")
+
+
+def test_assemble_single_command_skew_is_quoted():
+    out = assemble("getTGT.py dom/user", skew_target="a b")
+    assert out == "AR_SKEW='a b' arun getTGT.py dom/user"
+
+
+def test_assemble_single_command_skew_wrap_applies_inside_arun():
+    out = assemble("getTGT.py dom/user", skew_target="10.0.0.1", wrap=lambda c: f"proxychains -q {c}")
+    assert out == "AR_SKEW=10.0.0.1 arun proxychains -q getTGT.py dom/user"
+
+
+def test_assemble_single_command_no_skew_stays_bare():
+    assert assemble("getTGT.py dom/user") == "getTGT.py dom/user"
+
+
+def test_assemble_single_local_faketime_stays_bare():
+    # a #target/local cheat emits bare even with a skew target (foreign host)
+    assert assemble("whoami", local=True, skew_target="10.0.0.1") == "whoami"
 
 
 # ---------- #target/local: emitted bare ----------

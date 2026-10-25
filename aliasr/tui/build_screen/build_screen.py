@@ -563,9 +563,21 @@ class BuildScreen(ModalScreen[str | None]):
 
         # `#faketime` cheats run under skewrun to correct DC clock skew. The
         # per-step skewrun guard lives in the `arun` wrapper now; we only hand it
-        # the target via a leading `export AR_SKEW=...` (emitted by assemble).
+        # the target via AR_SKEW, which assemble emits as a leading `export` for a
+        # multi-line chain or an inline `AR_SKEW=... arun` for a single command.
+        #
+        # The skew target is the DC whose clock we sync to -- an engagement-wide
+        # value, not something the command need reference. Prefer an ip/dc_ip the
+        # build screen is showing (the user may have edited it), else fall back to
+        # the global, so a cheat with no <ip>/<dc_ip> placeholder (e.g. a lone
+        # getTGT) still gets a target instead of silently running unskewed.
         skew_target = (
-            (self._values.get("ip") or self._values.get("dc_ip") or "")
+            (
+                self._values.get("ip")
+                or self._values.get("dc_ip")
+                or self.app.globals.get("ip", "")
+                or self.app.globals.get("dc_ip", "")
+            )
             if "faketime" in self._tags
             else None
         )
