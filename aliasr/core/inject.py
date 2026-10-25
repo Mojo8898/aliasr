@@ -131,11 +131,14 @@ def copy_to_clipboard(cmd: str) -> int:
     return 0
 
 
-# A command longer than this is not typed into the shell: the terminal input
-# buffer (the kernel tty line-discipline queue, ~4 KB and kernel-dependent)
-# silently drops whatever overflows it, truncating long commands mid-flight.
-# Kept well under that floor so it holds in and out of tmux, on any box.
-_INLINE_MAX = 2048
+# The terminal input buffer -- the kernel tty line-discipline queue
+# (N_TTY_BUF_SIZE) -- holds this many bytes before it silently drops whatever
+# overflows, truncating a longer command mid-flight. Measured identical (4095) on
+# modern Linux, in and out of tmux and over ssh. A command we type at the prompt
+# -- plus the trailing newline when we press Enter for it -- must fit under this;
+# anything larger we never type (pasting the whole command into the live line
+# editor races it and doubles/garbles the echo), we copy it to the clipboard.
+_TTY_LIMIT = 4095
 
 
 def _write_cmd_tempfile(cmd: str) -> str:
@@ -161,77 +164,27 @@ def _deliver_inline(cmd: str, using_tmux: bool, execute: bool, pane_index: str |
     return _tty_inject(cmd + ("\n" if execute else ""))
 
 
-_KNOWN_SHELLS = ("zsh", "bash", "fish", "dash", "ksh", "sh")
+def _fallback_clipboard(cmd: str) -> int:
+    """Hand off a command too long to type at the prompt.
 
+    A command over the tty input buffer can't be typed (it truncates) and can't
+    be pasted into the live prompt without racing the line editor, so we don't try
+    either: we copy the whole command to the clipboard for the user to paste --
+    to run or edit. This behaves the same in and out of tmux/ssh and for both
+    execute and review; we can't press Enter for them, but the command is intact.
 
-def _parent_shell() -> str:
-    """Name of the interactive shell aliasr will hand the command back to.
-
-    Prefer aliasr's parent process when it is itself a shell; otherwise (e.g.
-    launched via ``uv run``/a wrapper, so the parent is not a shell) fall back
-    to ``$SHELL``.
+    If no clipboard backend is reachable (and OSC 52 also fails), we save the
+    command to a private (0600) file and tell the user how to run it, so a long
+    command is never silently lost.
     """
-    try:
-        with open(f"/proc/{os.getppid()}/comm", encoding="utf-8") as f:
-            comm = f.read().strip().lstrip("-")
-        if comm in _KNOWN_SHELLS:
-            return comm
-    except OSError:
-        pass
-    return os.path.basename(os.environ.get("SHELL", "")).strip()
-
-
-def _inject_long(cmd: str, using_tmux: bool, execute: bool, pane_index: str | None) -> int:
-    """Deliver a command too long to type at the prompt (in or out of tmux).
-
-    A long command can't be pushed through the terminal input buffer (it is
-    truncated at ~4 KB), and pasting it into the live prompt races the shell's
-    line editor (causing a doubled/garbled echo). So we never deliver the whole
-    command that way: we write it to a temp file and inject only a tiny,
-    race-free bootstrap that the shell runs itself.
-
-    * execute -> ``. <file>`` (POSIX dot) runs it in the current shell (exports
-      persist; the announce banners still show each step). ``source`` is not
-      portable -- dash/ksh/sh would reject it.
-    * review (zsh) -> ``print -z`` loads the full command into zsh's next edit
-      buffer, so it appears at the prompt ready to review/edit/run -- no paste.
-    * review (other shells) -> copy to the clipboard (no portable way to preload
-      the line editor), falling back to a saved file.
-
-    The temp file's ``rm`` lives inside the injected bootstrap, which only runs
-    if the bootstrap was actually delivered. When delivery fails (no TTY /
-    TIOCSTI disabled) we clean the file up here and return non-zero, so we never
-    leak a 0600 file holding the full command nor report a false success.
-    """
-    import shlex
-
-    path = _write_cmd_tempfile(cmd)
-    q = shlex.quote(path)
-    shell = _parent_shell()
-
-    if execute:
-        if _deliver_inline(f". {q}; rm -f {q}", using_tmux, True, pane_index):
-            return 0
-        os.unlink(path)
-        return 1
-
-    if shell == "zsh":
-        # The bootstrap runs (hence execute=True); print -z then pops the full
-        # command into the next prompt's editable buffer.
-        if _deliver_inline(f'print -z -- "$(< {q})"; rm -f {q}', using_tmux, True, pane_index):
-            return 0
-        os.unlink(path)
-        return 1
-
     try:
         copy_to_clipboard(cmd)
         print(
-            f"aliasr: command is {len(cmd)} bytes, over the terminal's input limit; "
-            "copied to clipboard — paste it to run or edit.",
+            f"Command length longer than {_TTY_LIMIT} byte cap. Copied to clipboard!",
             file=sys.stderr,
         )
-        os.unlink(path)
     except Exception:
+        path = _write_cmd_tempfile(cmd)
         print(
             "aliasr: command too long to type and no clipboard backend available; "
             f"saved to {path} — run it with: . {path}",
@@ -253,7 +206,10 @@ def inject(
         return copy_to_clipboard(cmd)
     if outfile:
         return _write_to_file(cmd, outfile)
-    if len(cmd) > _INLINE_MAX:
-        return _inject_long(cmd, using_tmux, execute, pane_index)
+    # What we'd type is the command plus a trailing newline when we execute it; if
+    # that would overflow the tty input buffer, hand off via the clipboard rather
+    # than type a command the kernel would truncate mid-flight.
+    if len(cmd) + (1 if execute else 0) > _TTY_LIMIT:
+        return _fallback_clipboard(cmd)
     _deliver_inline(cmd, using_tmux, execute, pane_index)
     return 0
