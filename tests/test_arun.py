@@ -60,6 +60,22 @@ def test_arun_runs_under_skewrun_when_ar_skew_set(tmp_path):
     assert "deep" in r.stdout           # and the wrapped command still ran
 
 
+def test_arun_skips_skewrun_when_faketime_already_set(tmp_path):
+    # Already inside a faketime'd shell: skewrun must NOT run, or skew doubles.
+    stub = tmp_path / "skewrun"
+    stub.write_text('#!/bin/sh\necho "SKEW-RAN"\nshift 2\nexec "$@"\n')
+    stub.chmod(0o755)
+
+    r = _run(
+        ["echo", "deep"],
+        env_extra={"AR_SKEW": "10.9.8.7", "FAKETIME": "-1h"},
+        path_prepend=str(tmp_path),
+    )
+    assert r.returncode == 0, r.stderr
+    assert "SKEW-RAN" not in r.stdout  # skewrun skipped despite AR_SKEW being set
+    assert r.stdout.strip() == "deep"
+
+
 def test_arun_chain_persists_cross_step_export(tmp_path):
     """The linchpin of the rework: because steps are emitted UNQUOTED, a step's
     trailing `&& export KRB5CCNAME=...` runs in the parent shell, so a *later*

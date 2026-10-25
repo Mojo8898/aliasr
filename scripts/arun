@@ -13,7 +13,8 @@
 # $AR_SKEW is set, it runs the command under `skewrun <target> -- ...` to correct
 # DC clock skew; otherwise it runs the command directly. Only cheats that need it
 # set AR_SKEW (via a leading `export AR_SKEW=...`), so skewrun is never applied
-# blanketly.
+# blanketly. If $FAKETIME is already set (the shell is itself faketime'd / already
+# skewed), skewrun is skipped -- applying it again would double the skew.
 #
 # The command arrives as argv ("$@"), not a quoted string, so any trailing
 # `&& export ...` on the step was already parsed by the parent shell and runs
@@ -30,7 +31,7 @@ else
 	printf '\n=== %s ===\n' "$*" >&2
 fi
 
-if [ -n "$AR_SKEW" ]; then
+if [ -n "$AR_SKEW" ] && [ -z "$FAKETIME" ]; then
 	exec skewrun "$AR_SKEW" -- "$@"
 else
 	exec "$@"
