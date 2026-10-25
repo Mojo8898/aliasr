@@ -1,7 +1,7 @@
 # SMB
 #target/remote #os/linux #cat/ad #proto/smb #port/445
 
-## SMB all in one
+## smb all in one
 ```
 nxc smb <ip> -u '<user>' <auth> --shares --pass-pol
 

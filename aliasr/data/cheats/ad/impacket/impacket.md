@@ -18,7 +18,7 @@ netview.py <domain>/'<user>' -target <fqdn>
 
 ## smbserver
 ```
-smbserver.py -smb2support <share|a> <path|.> -username <user|mojo> -password <password|'Password123!'>
+smbserver.py -smb2support <share|a> <path|.> -username <user|pentest> -password <password|'Password123!'>
 ```
 
 ## convert kirbi to ccache

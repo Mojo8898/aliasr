@@ -6,9 +6,11 @@
 ```
 getTGT.py <domain>/'<user>'<impacket_auth> && export KRB5CCNAME=$(pwd)/'<user>'.ccache
 
-bloodyAD --host <fqdn> -d <domain> -u '<user>' -k get writable
+bloodyAD --host <fqdn> -d <domain> -u '<user>' -k get writable --partition DOMAIN
 
 rusthound-ce -z -c All -d <domain> -u '<user>' -k -f <fqdn> -i <dc_ip>
+
+FAKETIME= bloodhound-ce-ctl -u <bh_url|http://127.0.0.1:8080> -z $(ls -t *_rusthound-ce.zip | head -1) -c -p
 
 certipy find -vulnerable -u '<user>'@<domain> -k -target <fqdn> -dc-ip <dc_ip> -stdout -timeout 2 -ldap-scheme ldap
 
@@ -40,7 +42,7 @@ powerview <domain>/'<user>:<password>'@<dc_fqdn> --no-cache
 ```
 getTGT.py <domain>/'<user>'<impacket_auth> && export KRB5CCNAME=$(pwd)/'<user>'.ccache
 
-bloodyAD --host <fqdn> -d <domain> -u '<user>' -k get writable
+bloodyAD --host <fqdn> -d <domain> -u '<user>' -k get writable --partition DOMAIN
 
 nxc smb <ip> --use-kcache --shares
 

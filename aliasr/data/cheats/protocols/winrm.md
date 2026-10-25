@@ -10,3 +10,8 @@ ewp -i <ip> <auth>
 ```
 evil-winrm -i <fqdn> <auth>
 ```
+
+## nxc winrm dpapi
+```
+nxc winrm <ip> -u '<user>' <auth> --dpapi
+```

