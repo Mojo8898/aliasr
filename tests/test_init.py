@@ -1,7 +1,7 @@
 """Tests for `aliasr init` -- appending integration blocks to dotfiles.
 
-Each target's snippet is appended inside a marked block; a re-run must detect
-the existing block and never duplicate it. Dotfiles are pointed at a temp HOME.
+Each snippet is headed by a `# aliasr` tag line; a re-run must detect that tag
+and never duplicate the block. Dotfiles are pointed at a temp HOME.
 """
 
 import builtins
@@ -20,7 +20,7 @@ def test_appends_both_blocks(monkeypatch, tmp_path):
 
     zshrc = (home / ".zshrc").read_text(encoding="utf-8")
     tmux = (home / ".tmux.conf").read_text(encoding="utf-8")
-    assert mod._BEGIN in zshrc and mod._END in zshrc
+    assert mod._TAG in zshrc.splitlines() and mod._TAG in tmux.splitlines()
     assert "function a { aliasr" in zshrc
     assert 'bind K split-window "aliasr -e send -pp"' in tmux
 
@@ -39,7 +39,7 @@ def test_idempotent_second_run_does_not_duplicate(monkeypatch, tmp_path):
     mod.run_init(zsh=True)
     second = (home / ".zshrc").read_text(encoding="utf-8")
     assert first == second
-    assert second.count(mod._BEGIN) == 1
+    assert second.splitlines().count(mod._TAG) == 1
 
 
 def test_appends_without_prompting(monkeypatch, tmp_path):
@@ -70,4 +70,4 @@ def test_block_separated_from_existing_content(monkeypatch, tmp_path):
     mod.run_init(zsh=True)
     text = zshrc.read_text(encoding="utf-8")
     assert text.startswith("export FOO=1\n")
-    assert f"\n{mod._BEGIN}" in text  # blank line before the block
+    assert f"\n{mod._TAG}\n" in text  # blank line before the tag

@@ -1,13 +1,9 @@
-# Wrap aliasr so the credential/host you select follow you into your shell.
+# aliasr
 function a { aliasr "$@" && exec zsh }
 
-# Source Exegol-history's profile.sh and surface the current USER (and DOMAIN,
-# when set) in the prompt. Overrides Kali's default configure_prompt; on a
-# non-Kali prompt, invoke configure_prompt yourself (e.g. via add-zsh-hook).
 [ -f ~/.exegol_history/profile.sh ] && source ~/.exegol_history/profile.sh
 
 configure_prompt() {
-    # Exegol-history tag from the env vars profile.sh exports.
     local db_prompt=""
     if [[ -n "$USER" ]]; then
         if [[ -n "$DOMAIN" ]]; then

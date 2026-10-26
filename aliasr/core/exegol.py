@@ -48,6 +48,32 @@ def _read_active_vars(path: Path | None) -> dict[str, str]:
     return vals
 
 
+def _template_lines() -> list[str]:
+    """The commented export template exegol-history seeds a fresh profile.sh with."""
+    return [f"#export {v}=''\n" for v in _TEMPLATE_VARS]
+
+
+def ensure_profile(path: Path | None = None) -> None:
+    """Create profile.sh with the commented template if it's missing.
+
+    Mirrors the creds DB being created on first bootstrap access, so a shell
+    that sources profile.sh (the ``aliasr init`` / README setup) finds it
+    present even before aliasr has set any credential or host.
+    """
+    path = path or CREDS_PROFILE
+    if not path:
+        return
+    with _PROFILE_LOCK:
+        try:
+            p = Path(path)
+            if p.exists():
+                return
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text("".join(_template_lines()), encoding="utf-8")
+        except OSError:
+            pass
+
+
 def _write_vars(mapping: dict[str, str], path: Path | None) -> None:
     """Update the given exports in profile.sh (value -> export, empty -> unset),
     exactly like exegol-history's parse_and_update."""
@@ -61,7 +87,7 @@ def _write_vars(mapping: dict[str, str], path: Path | None) -> None:
                 lines = p.read_text(encoding="utf-8").splitlines(keepends=True)
             else:
                 p.parent.mkdir(parents=True, exist_ok=True)
-                lines = [f"#export {v}=''\n" for v in _TEMPLATE_VARS]
+                lines = _template_lines()
             for i, line in enumerate(lines):
                 m = _UPDATE_RE.search(line)
                 if not m:

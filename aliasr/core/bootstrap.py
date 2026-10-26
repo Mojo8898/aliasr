@@ -24,10 +24,13 @@ def _load_creds_data() -> None:
 
     The first load also pulls NetExec's credentials into the shared store, so
     doing it here overlaps that work with the cheats/globals load instead of
-    stalling the first screen that reads credentials.
+    stalling the first screen that reads credentials. Also seeds an empty
+    profile.sh (like the creds DB) so a shell sourcing it never errors.
     """
     from aliasr.core.creds import load_creds
+    from aliasr.core.exegol import ensure_profile
 
+    ensure_profile()
     load_creds()
 
 

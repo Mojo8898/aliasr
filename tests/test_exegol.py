@@ -25,6 +25,27 @@ def test_set_then_read_roundtrip(tmp_path):
     assert "export DOMAIN='corp.local'" in text
 
 
+def test_ensure_profile_seeds_template_when_missing(tmp_path):
+    prof = tmp_path / "nested" / "profile.sh"
+    exegol.ensure_profile(prof)
+
+    assert prof.exists()
+    text = prof.read_text()
+    # Commented template, no active credential yet.
+    assert "#export USER=''" in text
+    assert exegol.current_credential(prof) is None
+
+
+def test_ensure_profile_does_not_clobber_existing(tmp_path):
+    prof = tmp_path / "profile.sh"
+    exegol.set_current_credential(Credential("admin", "pw", "", "corp"), prof)
+    before = prof.read_text()
+
+    exegol.ensure_profile(prof)
+    assert prof.read_text() == before  # untouched
+    assert exegol.current_credential(prof) == Credential("admin", "pw", "", "corp")
+
+
 def test_single_quote_in_value_is_escaped(tmp_path):
     # A password containing ' must not break the single-quoted export line,
     # which would abort every shell sourcing the shared profile.sh.

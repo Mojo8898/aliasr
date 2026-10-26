@@ -119,7 +119,7 @@ def _resolve_creds_db(value: str) -> Path:
 def _resolve_profile(value: str) -> Path:
     """Exegol-history profile.sh path. Resolution order: ALIASR_PROFILE env, an
     explicit [creds].profile, exegol's own ~/.exegol_history/config.toml, then
-    exegol's packaged default."""
+    ~/.exegol_history/profile.sh (a sibling of the default creds DB)."""
     env = os.getenv("ALIASR_PROFILE")
     if env:
         return _expand_path(env)
@@ -133,7 +133,7 @@ def _resolve_profile(value: str) -> Path:
             return _expand_path(p)
     except OSError:
         pass
-    return Path("/opt/tools/Exegol-history/profile.sh")
+    return _expand_path("~/.exegol_history/profile.sh")
 
 
 def _ensure_user_env() -> None:
