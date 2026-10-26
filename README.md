@@ -55,7 +55,7 @@ aliasr records the credential and host you build with as [Exegol-history](https:
 Add the following to your `~/.zshrc` to source `profile.sh` and show the current `USER` (and `DOMAIN`, when set) in your prompt. It overrides Kali's default `configure_prompt`:
 
 ```zsh
-source ~/.exegol_history/profile.sh
+[ -f ~/.exegol_history/profile.sh ] && source ~/.exegol_history/profile.sh
 
 configure_prompt() {
     # Exegol-history tag from the env vars profile.sh exports.

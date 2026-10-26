@@ -54,6 +54,15 @@ def test_appends_without_prompting(monkeypatch, tmp_path):
     assert (home / ".zshrc").exists()
 
 
+def test_zsh_snippet_guards_profile_source():
+    """profile.sh is sourced only if present -- a fresh box without
+    Exegol-history must not error on every shell start."""
+    snippet = mod._snippet("zsh.sh")
+    assert "[ -f ~/.exegol_history/profile.sh ] && source" in snippet
+    # No bare, unguarded source line.
+    assert "\nsource ~/.exegol_history/profile.sh" not in snippet
+
+
 def test_block_separated_from_existing_content(monkeypatch, tmp_path):
     home = _home(monkeypatch, tmp_path)
     zshrc = home / ".zshrc"

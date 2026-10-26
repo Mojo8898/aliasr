@@ -4,7 +4,7 @@ function a { aliasr "$@" && exec zsh }
 # Source Exegol-history's profile.sh and surface the current USER (and DOMAIN,
 # when set) in the prompt. Overrides Kali's default configure_prompt; on a
 # non-Kali prompt, invoke configure_prompt yourself (e.g. via add-zsh-hook).
-source ~/.exegol_history/profile.sh
+[ -f ~/.exegol_history/profile.sh ] && source ~/.exegol_history/profile.sh
 
 configure_prompt() {
     # Exegol-history tag from the env vars profile.sh exports.
