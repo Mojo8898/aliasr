@@ -185,3 +185,112 @@ def test_inline_delivery_failure_returns_nonzero(monkeypatch):
 def test_inline_delivery_success_returns_zero(monkeypatch):
     monkeypatch.setattr(ij, "_tty_inject", lambda _p: True)
     assert ij.inject("echo hi", using_tmux=False, execute=True) == 0
+
+
+# ---------- TIOCSTI enable-and-retry ----------
+
+
+def _fake_tty(monkeypatch, ioctl_fails):
+    """Wire up /dev/tty so the ioctl raises OSError while ``ioctl_fails()`` is
+    truthy, letting a test flip TIOCSTI "on" partway through."""
+    import builtins
+    import fcntl
+    import termios
+
+    class _FakeTTY:
+        def fileno(self):
+            return 0
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    real_open = builtins.open
+    monkeypatch.setattr(
+        builtins,
+        "open",
+        lambda *a, **k: _FakeTTY() if a and a[0] == "/dev/tty" else real_open(*a, **k),
+    )
+    monkeypatch.setattr(termios, "tcgetattr", lambda fd: [0, 0, 0, 0, 0, 0, []])
+    monkeypatch.setattr(termios, "tcsetattr", lambda *a: None)
+
+    def _ioctl(fd, req, arg):
+        if ioctl_fails():
+            raise OSError("TIOCSTI disabled")
+
+    monkeypatch.setattr(fcntl, "ioctl", _ioctl)
+
+
+def test_tty_inject_declined_enable_returns_false(monkeypatch):
+    """TIOCSTI off and the user declines the prompt -> failure, no retry."""
+    _fake_tty(monkeypatch, ioctl_fails=lambda: True)
+    calls = {"n": 0}
+
+    def _enable():
+        calls["n"] += 1
+        return False
+
+    monkeypatch.setattr(ij, "_enable_tiocsti", _enable)
+    assert ij._tty_inject("echo hi\n") is False
+    assert calls["n"] == 1
+
+
+def test_tty_inject_enables_then_retries_successfully(monkeypatch):
+    """Accepting the prompt enables TIOCSTI, and the retry types the command."""
+    state = {"off": True}
+    _fake_tty(monkeypatch, ioctl_fails=lambda: state["off"])
+
+    def _enable():
+        state["off"] = False  # sysctl -w took effect
+        return True
+
+    monkeypatch.setattr(ij, "_enable_tiocsti", _enable)
+    assert ij._tty_inject("echo hi\n") is True
+
+
+def test_tty_inject_enable_retry_is_attempted_once(monkeypatch):
+    """If TIOCSTI is still off after a reported-successful enable, we fail rather
+    than loop forever -- the retry runs with enabling disabled."""
+    _fake_tty(monkeypatch, ioctl_fails=lambda: True)
+    calls = {"n": 0}
+
+    def _enable():
+        calls["n"] += 1
+        return True  # claims success, but ioctl keeps failing
+
+    monkeypatch.setattr(ij, "_enable_tiocsti", _enable)
+    assert ij._tty_inject("echo hi\n") is False
+    assert calls["n"] == 1
+
+
+def test_enable_tiocsti_default_yes_applies_sysctl(monkeypatch):
+    """Empty input (just Enter) accepts, and we run sysctl -w + persist a drop-in."""
+    import builtins
+    import subprocess
+
+    monkeypatch.setattr(builtins, "input", lambda _p="": "")
+    monkeypatch.setattr(ij.os, "geteuid", lambda: 0)  # root: no sudo, direct write
+
+    runs = []
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: runs.append(a[0]) or None)
+    written = {}
+    monkeypatch.setattr(ij.Path, "write_bytes", lambda self, data: written.update(p=str(self), d=data))
+
+    assert ij._enable_tiocsti() is True
+    assert runs == [["sysctl", "-w", "dev.tty.legacy_tiocsti=1"]]
+    assert written["p"] == "/etc/sysctl.d/aliasr.conf"
+    assert written["d"] == b"dev.tty.legacy_tiocsti = 1\n"
+
+
+def test_enable_tiocsti_declined(monkeypatch):
+    """Answering 'n' declines without touching the system."""
+    import builtins
+    import subprocess
+
+    monkeypatch.setattr(builtins, "input", lambda _p="": "n")
+    monkeypatch.setattr(
+        subprocess, "run", lambda *a, **k: (_ for _ in ()).throw(AssertionError("ran a command"))
+    )
+    assert ij._enable_tiocsti() is False

@@ -37,12 +37,70 @@ def _tmux_send_keys(pane: str, cmd: str, execute: bool) -> bool:
         return False
 
 
-def _tty_inject(payload: str) -> bool:
+def _enable_tiocsti() -> bool:
+    """Offer to enable the legacy TIOCSTI sysctl, and apply it if accepted.
+
+    Modern kernels ship it off because TIOCSTI lets a process inject keystrokes
+    into a terminal; aliasr needs it to type the command at your prompt. On
+    consent, applies a live ``sysctl -w`` plus a persistent drop-in in
+    /etc/sysctl.d (idempotent — overwrites, never piling lines into sysctl.conf).
+    Needs root for the privileged steps, or sudo. Returns True once enabled.
+
+    Reached only after the TUI has exited, so we own a cooked terminal and can
+    prompt. Enter accepts: aliasr is unusable without it, so the default is yes.
+    """
+    import shutil
+    import subprocess
+
+    print(
+        "\naliasr needs TIOCSTI to type commands into your shell's input line, but\n"
+        "your kernel has it disabled (the default — it lets a process push keystrokes\n"
+        "into a terminal). Enabling it writes a live + persistent sysctl setting.",
+        file=sys.stderr,
+    )
+    try:
+        answer = input("Enable TIOCSTI now? [Y/n] ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        print(file=sys.stderr)
+        return False
+    if answer in ("n", "no"):
+        return False
+
+    root = os.geteuid() == 0
+    if root:
+        sudo: list[str] = []
+    elif shutil.which("sudo"):
+        sudo = ["sudo"]
+    else:
+        print("aliasr: need root or sudo to enable TIOCSTI.", file=sys.stderr)
+        return False
+
+    drop_in = b"dev.tty.legacy_tiocsti = 1\n"
+    path = "/etc/sysctl.d/aliasr.conf"
+    try:
+        subprocess.run(sudo + ["sysctl", "-w", "dev.tty.legacy_tiocsti=1"], check=True)
+        if root:
+            Path(path).write_bytes(drop_in)
+        else:
+            # tee under sudo so the redirect itself runs with privilege.
+            subprocess.run(
+                sudo + ["tee", path], input=drop_in, check=True, stdout=subprocess.DEVNULL
+            )
+    except (OSError, subprocess.CalledProcessError) as exc:
+        print(f"aliasr: could not enable TIOCSTI: {exc}", file=sys.stderr)
+        return False
+    return True
+
+
+def _tty_inject(payload: str, _allow_enable: bool = True) -> bool:
     """Inject characters directly into the current TTY.
 
     Returns True if the whole payload was pushed into the line buffer, False if
     it could not be (no controlling TTY, or TIOCSTI disabled). Callers rely on
     this to know whether the shell will actually run what we handed it.
+
+    If TIOCSTI is disabled, offer to enable it and retry once — ``sysctl -w``
+    takes effect immediately and system-wide, so a fresh /dev/tty picks it up.
     """
     import fcntl
     import termios
@@ -51,6 +109,7 @@ def _tty_inject(payload: str) -> bool:
         tty = open("/dev/tty", "rb+", buffering=0)
     except OSError:
         return False
+    disabled = False
     with tty:
         fd = tty.fileno()
         old = termios.tcgetattr(fd)
@@ -61,20 +120,14 @@ def _tty_inject(payload: str) -> bool:
             for byte in payload.encode("utf-8"):
                 fcntl.ioctl(fd, termios.TIOCSTI, bytes([byte]))
         except OSError:
-            print("""========== OSError ============
-aliasr needs TIOCSTI enabled for running
-Please run the following commands as root to fix this issue on the current session:
-sysctl -w dev.tty.legacy_tiocsti=1
-
-If you want this workaround to survive a reboot,
-add the following configuration to sysctl.conf file and reboot:
-echo "dev.tty.legacy_tiocsti=1" >> /etc/sysctl.conf
-
-More details: https://github.com/Orange-Cyberdefense/arsenal/issues/77
-""")
-            return False
+            disabled = True
         finally:
             termios.tcsetattr(fd, termios.TCSADRAIN, old)
+    if disabled:
+        # Terminal is restored (finally ran); safe to prompt now, then retry once.
+        if _allow_enable and _enable_tiocsti():
+            return _tty_inject(payload, _allow_enable=False)
+        return False
     return True
 
 
