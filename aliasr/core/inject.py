@@ -52,14 +52,10 @@ def _enable_tiocsti() -> bool:
     import shutil
     import subprocess
 
-    print(
-        "\naliasr needs TIOCSTI to type commands into your shell's input line, but\n"
-        "your kernel has it disabled (the default — it lets a process push keystrokes\n"
-        "into a terminal). Enabling it writes a live + persistent sysctl setting.",
-        file=sys.stderr,
-    )
     try:
-        answer = input("Enable TIOCSTI now? [Y/n] ").strip().lower()
+        answer = input(
+            "aliasr requires TIOCSTI to inject commands, enable TIOCSTI now? [Y/n] "
+        ).strip().lower()
     except (EOFError, KeyboardInterrupt):
         print(file=sys.stderr)
         return False
