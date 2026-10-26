@@ -42,7 +42,7 @@ pipx install git+https://github.com/Mojo8898/aliasr
 ```
 
 > [!TIP]
-> Run `aliasr init` to append the zsh and tmux integration below to your `~/.zshrc` and `~/.tmux.conf` automatically (idempotent — re-running won't duplicate the block). Scope it with `aliasr init -z` (zsh only) / `aliasr init -t` (tmux only). The manual steps below remain the reference for what it adds.
+> Run `aliasr init` to append the zsh and tmux integration below to your `~/.zshrc` and `~/.tmux.conf` automatically (idempotent).
 
 Add the following to your `~/.zshrc` to wrap aliasr in a shell function, so the credential and host you select follow you into your shell:
 
@@ -56,11 +56,11 @@ Add the following to your `~/.zshrc` to source `profile.sh` and show the current
 
 ```zsh
 [ -f ~/.exegol_history/profile.sh ] && source ~/.exegol_history/profile.sh
+export U="$USER" P="$PASSWORD" H="$NT_HASH" D="$DOMAIN" I="$IP"
 
 configure_prompt() {
-    # Exegol-history tag from the env vars profile.sh exports.
     local db_prompt=""
-    if [[ -n "$USER" ]]; then
+    if [[ -n "$USER" ]] && grep -q '^export USER=' ~/.exegol_history/profile.sh 2>/dev/null; then
         if [[ -n "$DOMAIN" ]]; then
             db_prompt="%F{white}[%F{yellow}${USER}@${DOMAIN}%F{white}]%F{%(#.blue.green)}─"
         else
@@ -83,10 +83,10 @@ configure_prompt() {
     esac
 }
 
-export U="$USER" P="$PASSWORD" H="$NT_HASH" D="$DOMAIN"
+configure_prompt
 ```
 
-The trailing `export` also gives you short `$U` / `$P` / `$H` / `$D` handles for the current credential. On a non-Kali prompt, invoke `configure_prompt` yourself (for example with `add-zsh-hook precmd configure_prompt`).
+Because Kali already calls `configure_prompt` earlier in `~/.zshrc`, the block ends by calling the redefined function again — add it to the **end** of your `~/.zshrc` (which is what `aliasr init` does) so this call wins. The trailing `export` also gives you short `$U` / `$P` / `$H` / `$D` / `$I` handles for the current credential and target IP. On a non-Kali prompt, drop the final `configure_prompt` call if `PROMPT_ALTERNATIVE` isn't set.
 
 To use aliasr's extended tmux integration, add the following to your `~/.tmux.conf`:
 

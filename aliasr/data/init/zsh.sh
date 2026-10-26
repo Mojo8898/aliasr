@@ -2,10 +2,11 @@
 function a { aliasr "$@" && exec zsh }
 
 [ -f ~/.exegol_history/profile.sh ] && source ~/.exegol_history/profile.sh
+export U="$USER" P="$PASSWORD" H="$NT_HASH" D="$DOMAIN" I="$IP"
 
 configure_prompt() {
     local db_prompt=""
-    if [[ -n "$USER" ]]; then
+    if [[ -n "$USER" ]] && grep -q '^export USER=' ~/.exegol_history/profile.sh 2>/dev/null; then
         if [[ -n "$DOMAIN" ]]; then
             db_prompt="%F{white}[%F{yellow}${USER}@${DOMAIN}%F{white}]%F{%(#.blue.green)}─"
         else
@@ -28,4 +29,4 @@ configure_prompt() {
     esac
 }
 
-export U="$USER" P="$PASSWORD" H="$NT_HASH" D="$DOMAIN"
+configure_prompt
