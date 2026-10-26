@@ -7,7 +7,6 @@ unless --yes is passed.
 """
 
 import os
-import sys
 from pathlib import Path
 
 # The installed package dir -- mirrors core/config.py's PKG_DIR.
@@ -31,19 +30,15 @@ def _marked_block(body: str) -> str:
     return f"{_BEGIN}\n{body.strip(chr(10))}\n{_END}\n"
 
 
-def _append(path: Path, body: str, assume_yes: bool) -> str:
-    """Append a marked block to ``path``. Returns 'exists', 'added', or 'declined'."""
+def _append(path: Path, body: str) -> str:
+    """Append a marked block to ``path``. Returns 'exists' or 'added'.
+
+    Scoping is the -z/-t flags' job, so this doesn't prompt -- it just appends,
+    skipping only when the file already holds an aliasr block (idempotent).
+    """
     existing = path.read_text(encoding="utf-8") if path.exists() else ""
     if _BEGIN in existing:
         return "exists"
-    if not assume_yes:
-        try:
-            answer = input(f"Append aliasr config to {path}? [Y/n] ").strip().lower()
-        except (EOFError, KeyboardInterrupt):
-            print(file=sys.stderr)
-            return "declined"
-        if answer in ("n", "no"):
-            return "declined"
     # Separate the block from any prior content with a blank line.
     sep = "" if not existing else ("\n" if existing.endswith("\n") else "\n\n")
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -52,7 +47,7 @@ def _append(path: Path, body: str, assume_yes: bool) -> str:
     return "added"
 
 
-def run_init(zsh: bool = False, tmux: bool = False, assume_yes: bool = False) -> int:
+def run_init(zsh: bool = False, tmux: bool = False) -> int:
     """Append integration snippets. With neither flag (or both), set up both."""
     if zsh and not tmux:
         names = ["zsh"]
@@ -64,14 +59,12 @@ def run_init(zsh: bool = False, tmux: bool = False, assume_yes: bool = False) ->
     for name in names:
         dest, snippet = _TARGETS[name]
         path = Path(os.path.expanduser(dest))
-        status = _append(path, _snippet(snippet), assume_yes)
+        status = _append(path, _snippet(snippet))
         if status == "exists":
             print(f"{path}: already configured, skipping.")
-        elif status == "added":
+        else:
             print(f"{path}: added aliasr block.")
             added = True
-        else:
-            print(f"{path}: skipped.")
     if added:
         print("\nStart a new shell (or `exec zsh`) / reload tmux to apply.")
     return 0

@@ -113,9 +113,6 @@ def _parser() -> argparse.ArgumentParser:
     init.add_argument(
         "-t", "--tmux", action="store_true", help="Set up only tmux (~/.tmux.conf)"
     )
-    init.add_argument(
-        "-y", "--yes", action="store_true", help="Skip the per-file confirmation"
-    )
 
     # ---------- Clear ----------
 
@@ -204,7 +201,7 @@ def main() -> int:
 
     if args.cmd == "init":
         from aliasr.core.init import run_init
-        return run_init(args.zsh, args.tmux, args.yes)
+        return run_init(args.zsh, args.tmux)
 
     if args.cmd == "scan":
         from aliasr.core.scan import run_scan_cli

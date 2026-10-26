@@ -42,7 +42,7 @@ pipx install git+https://github.com/Mojo8898/aliasr
 ```
 
 > [!TIP]
-> Run `aliasr init` to append the zsh and tmux integration below to your `~/.zshrc` and `~/.tmux.conf` automatically (idempotent; confirms each file, or use `-y`). Scope it with `aliasr init -z` (zsh only) / `aliasr init -t` (tmux only). The manual steps below remain the reference for what it adds.
+> Run `aliasr init` to append the zsh and tmux integration below to your `~/.zshrc` and `~/.tmux.conf` automatically (idempotent — re-running won't duplicate the block). Scope it with `aliasr init -z` (zsh only) / `aliasr init -t` (tmux only). The manual steps below remain the reference for what it adds.
 
 Add the following to your `~/.zshrc` to wrap aliasr in a shell function, so the credential and host you select follow you into your shell:
 
