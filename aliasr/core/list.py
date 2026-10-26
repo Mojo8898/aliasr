@@ -132,18 +132,10 @@ def list_all() -> int:
     return 0
 
 
-def run_list(what: str) -> int:
-    """Execute list command based on subcommand."""
-    if what == "globals":
+def run_list(globals: bool = False, creds: bool = False) -> int:
+    """List globals and/or credentials. With neither flag (or both), list both."""
+    if globals and not creds:
         return list_globals()
-    elif what == "creds":
+    if creds and not globals:
         return list_creds()
-    elif what == "all":
-        return list_all()
-    else:
-        from rich.console import Console
-
-        console = Console()
-        console.print(f"[red]Unknown list command:[/] {what}")
-        console.print("[dim]Use 'aliasr list globals' or 'aliasr list creds'[/]")
-        return 1
+    return list_all()

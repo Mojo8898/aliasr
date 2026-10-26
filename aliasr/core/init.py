@@ -52,9 +52,14 @@ def _append(path: Path, body: str, assume_yes: bool) -> str:
     return "added"
 
 
-def run_init(target: str | None = None, assume_yes: bool = False) -> int:
-    """Append integration snippets for the given target (zsh/tmux), or both."""
-    names = ["zsh", "tmux"] if target in (None, "all") else [target]
+def run_init(zsh: bool = False, tmux: bool = False, assume_yes: bool = False) -> int:
+    """Append integration snippets. With neither flag (or both), set up both."""
+    if zsh and not tmux:
+        names = ["zsh"]
+    elif tmux and not zsh:
+        names = ["tmux"]
+    else:
+        names = ["zsh", "tmux"]
     added = False
     for name in names:
         dest, snippet = _TARGETS[name]

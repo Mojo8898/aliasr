@@ -42,7 +42,7 @@ pipx install git+https://github.com/Mojo8898/aliasr
 ```
 
 > [!TIP]
-> Run `aliasr init` to append the zsh and tmux integration below to your `~/.zshrc` and `~/.tmux.conf` automatically (idempotent; confirms each file, or use `-y`). Scope it with `aliasr init zsh` / `aliasr init tmux`. The manual steps below remain the reference for what it adds.
+> Run `aliasr init` to append the zsh and tmux integration below to your `~/.zshrc` and `~/.tmux.conf` automatically (idempotent; confirms each file, or use `-y`). Scope it with `aliasr init -z` (zsh only) / `aliasr init -t` (tmux only). The manual steps below remain the reference for what it adds.
 
 Add the following to your `~/.zshrc` to wrap aliasr in a shell function, so the credential and host you select follow you into your shell:
 
@@ -108,17 +108,20 @@ You can now use the `prefix+K` hotkey to open aliasr below the current pane and 
 
 ```bash
 $ aliasr -h
-usage: aliasr [-h] [-e] {audit,send,scan,list,clear} ...
+usage: aliasr [-h] [-e] {audit,send,scan,list,init,clear} ...
 
 aliasr - Modern TUI launcher for pentest commands
 
 positional arguments:
-  {audit,send,scan,list,clear}
-    audit               Audit cheatsheets and configs
+  {audit,send,scan,list,init,clear}
+    audit               Audit cheatsheets and configs (no flag = brief summary
+                        of all)
     send                Modify how commands are sent
     scan                Auto-populate globals from a target IP
-    list                List globals or credentials
-    clear               Clear session data
+    list                List globals and/or credentials (default: both)
+    init                Append aliasr's zsh/tmux integration to your dotfiles
+                        (default: both)
+    clear               Clear session data (default: globals)
 
 options:
   -h, --help            show this help message and exit

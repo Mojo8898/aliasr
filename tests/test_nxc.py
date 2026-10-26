@@ -516,52 +516,52 @@ def test_clear_flags_reports_cleared_vs_unchanged(nxc_home, capsys):
     from aliasr.core.bootstrap import clear_flags
 
     # Empty store -> "unchanged".
-    clear_flags(cache=False, globals=False, creds=True)
+    clear_flags(globals=False, creds=True)
     assert "Credentials unchanged" in capsys.readouterr().out
 
     # Populated store -> "cleared successfully!".
     creds_mod._db.write([Credential("admin", "pw", "", "corp")])
-    clear_flags(cache=False, globals=False, creds=True)
+    clear_flags(globals=False, creds=True)
     assert "Credentials cleared successfully!" in capsys.readouterr().out
 
 
 def test_confirm_clear_allows_nondestructive_and_yes():
     from aliasr.core.bootstrap import confirm_clear
 
-    assert confirm_clear("cache") is True       # non-destructive: no prompt
-    assert confirm_clear("globals") is True
-    assert confirm_clear("creds", assume_yes=True) is True  # --yes skips prompt
+    # Globals-only (no creds/hosts) is non-destructive: no prompt.
+    assert confirm_clear(creds=False, hosts=False) is True
+    assert confirm_clear(creds=True, hosts=False, assume_yes=True) is True  # --yes skips
 
 
 def test_confirm_clear_prompts_on_destructive(monkeypatch):
     from aliasr.core import bootstrap
 
     # Force "there is something to clear" so we exercise the prompt itself.
-    monkeypatch.setattr(bootstrap, "_has_clearable_data", lambda _cmd: True)
+    monkeypatch.setattr(bootstrap, "_has_clearable_data", lambda *_: True)
 
     monkeypatch.setattr("builtins.input", lambda *_: "n")
-    assert bootstrap.confirm_clear("creds") is False   # declined
+    assert bootstrap.confirm_clear(creds=True, hosts=False) is False   # declined
 
     monkeypatch.setattr("builtins.input", lambda *_: "y")
-    assert bootstrap.confirm_clear("all") is True       # confirmed
+    assert bootstrap.confirm_clear(creds=True, hosts=True) is True      # confirmed
 
     def _eof(*_):
         raise EOFError
 
     monkeypatch.setattr("builtins.input", _eof)
-    assert bootstrap.confirm_clear("hosts") is False    # non-interactive aborts
+    assert bootstrap.confirm_clear(creds=False, hosts=True) is False    # non-interactive aborts
 
 
 def test_confirm_clear_skips_prompt_when_empty(monkeypatch):
     from aliasr.core import bootstrap
 
-    monkeypatch.setattr(bootstrap, "_has_clearable_data", lambda _cmd: False)
+    monkeypatch.setattr(bootstrap, "_has_clearable_data", lambda *_: False)
 
     def _boom(*_):
         raise AssertionError("should not prompt when there is nothing to clear")
 
     monkeypatch.setattr("builtins.input", _boom)
-    assert bootstrap.confirm_clear("creds") is True  # proceeds without asking
+    assert bootstrap.confirm_clear(creds=True, hosts=False) is True  # proceeds without asking
 
 
 # ---------- deleting the current credential/host reconciles profile.sh ----------

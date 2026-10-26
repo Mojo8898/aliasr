@@ -147,10 +147,10 @@ def test_clear_hosts_leaves_credentials():
 
 
 def test_clear_flags_all_includes_hosts():
-    """`clear all` wires hosts in alongside creds/globals/cache."""
+    """`clear --all` wires hosts in alongside creds/globals."""
     from aliasr.core.bootstrap import clear_flags
     from aliasr.core.hosts import Host, load_hosts, save_hosts
 
     save_hosts([Host("10.9.9.9", "late", "")])
-    clear_flags(cache=False, globals=False, creds=True, hosts=True)
+    clear_flags(globals=False, creds=True, hosts=True)
     assert load_hosts() == []

@@ -94,20 +94,24 @@ def _parser() -> argparse.ArgumentParser:
 
     # ---------- List ----------
 
-    list_cmd = sub.add_parser("list", help="List globals or credentials")
-    list_sub = list_cmd.add_subparsers(dest="list_cmd", required=True, help="What to list")
-    list_sub.add_parser("globals", help="List all globals and their current values")
-    list_sub.add_parser("creds", help="List all saved credentials")
-    list_sub.add_parser("all", help="List both globals and credentials")
+    list_cmd = sub.add_parser("list", help="List globals and/or credentials (default: both)")
+    list_cmd.add_argument(
+        "-g", "--globals", action="store_true", help="List only globals"
+    )
+    list_cmd.add_argument(
+        "-c", "--credentials", action="store_true", help="List only credentials"
+    )
 
     # ---------- Init ----------
 
     init = sub.add_parser(
-        "init", help="Append aliasr's zsh/tmux integration to your dotfiles"
+        "init", help="Append aliasr's zsh/tmux integration to your dotfiles (default: both)"
     )
     init.add_argument(
-        "target", nargs="?", choices=["zsh", "tmux", "all"], default="all",
-        help="Which config to set up (default: all)",
+        "-z", "--zsh", action="store_true", help="Set up only zsh (~/.zshrc)"
+    )
+    init.add_argument(
+        "-t", "--tmux", action="store_true", help="Set up only tmux (~/.tmux.conf)"
     )
     init.add_argument(
         "-y", "--yes", action="store_true", help="Skip the per-file confirmation"
@@ -115,24 +119,22 @@ def _parser() -> argparse.ArgumentParser:
 
     # ---------- Clear ----------
 
+    # add_help=False frees -h for --hosts; --help still works (as does `aliasr -h`).
     clear = sub.add_parser(
-        "clear", help="Clear session data"
+        "clear", add_help=False, help="Clear session data (default: globals)"
     )
-    clear_sub = clear.add_subparsers(dest="clear_cmd", required=True)
-
-    # Shared --yes for the destructive clears, which prompt for confirmation.
-    yes_parent = argparse.ArgumentParser(add_help=False)
-    yes_parent.add_argument(
+    clear.add_argument("--help", action="help", help="Show this help message and exit")
+    clear.add_argument(
+        "-c", "--credentials", action="store_true", help="Clear credentials"
+    )
+    clear.add_argument("-h", "--hosts", action="store_true", help="Clear hosts")
+    clear.add_argument(
+        "-a", "--all", action="store_true",
+        help="Clear everything (globals, credentials, hosts)",
+    )
+    clear.add_argument(
         "-y", "--yes", action="store_true", help="Skip the confirmation prompt"
     )
-
-    clear_sub.add_parser(
-        "cache", help="Clear cheats cache (rebuilds automatically when cheats change)"
-    )
-    clear_sub.add_parser("globals", help="Clear globals")
-    clear_sub.add_parser("creds", parents=[yes_parent], help="Clear credentials")
-    clear_sub.add_parser("hosts", parents=[yes_parent], help="Clear hosts")
-    clear_sub.add_parser("all", parents=[yes_parent], help="Clear everything")
 
     p.set_defaults(copy=False, outfile=None, pane=None, previous_pane=False)
     return p
@@ -169,15 +171,19 @@ def main() -> int:
     if args.cmd == "clear":
         from aliasr.core.bootstrap import clear_flags, confirm_clear
 
-        if not confirm_clear(args.clear_cmd, getattr(args, "yes", False)):
+        # No flag clears globals; -c/-h select those stores; -a clears everything.
+        if args.all:
+            want_globals = want_creds = want_hosts = True
+        elif args.credentials or args.hosts:
+            want_globals, want_creds, want_hosts = False, args.credentials, args.hosts
+        else:
+            want_globals, want_creds, want_hosts = True, False, False
+
+        if not confirm_clear(want_creds, want_hosts, args.yes):
             print("Aborted.")
             return 1
 
-        clear_cache = args.clear_cmd in ("cache", "all")
-        clear_globals = args.clear_cmd in ("globals", "all")
-        clear_creds = args.clear_cmd in ("creds", "all")
-        clear_hosts = args.clear_cmd in ("hosts", "all")
-        clear_flags(clear_cache, clear_globals, clear_creds, clear_hosts)
+        clear_flags(want_globals, want_creds, want_hosts)
         return 0
 
     if args.cmd == "audit":
@@ -194,11 +200,11 @@ def main() -> int:
 
     if args.cmd == "list":
         from aliasr.core.list import run_list
-        return run_list(args.list_cmd)
+        return run_list(args.globals, args.credentials)
 
     if args.cmd == "init":
         from aliasr.core.init import run_init
-        return run_init(args.target, args.yes)
+        return run_init(args.zsh, args.tmux, args.yes)
 
     if args.cmd == "scan":
         from aliasr.core.scan import run_scan_cli

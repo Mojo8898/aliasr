@@ -127,19 +127,19 @@ def launch_app(execute: bool, pane: str | None, previous: bool):
     return app
 
 
-def confirm_clear(clear_cmd: str, assume_yes: bool = False) -> bool:
+def confirm_clear(creds: bool, hosts: bool, assume_yes: bool = False) -> bool:
     """Return True if a destructive ``aliasr clear`` should go ahead.
 
-    Only the data-destroying targets (creds / hosts / all) prompt — cache and
-    globals are cheap/local and clear without asking. ``assume_yes`` (``--yes``)
-    skips the prompt for scripting, and a non-interactive stdin (EOF) aborts.
-    The prompt warns when the clear will also reach NetExec.
+    Only the data-destroying targets (credentials / hosts) prompt — globals are
+    cheap/local and clear without asking. ``assume_yes`` (``--yes``) skips the
+    prompt for scripting, and a non-interactive stdin (EOF) aborts. The prompt
+    warns when the clear will also reach NetExec.
     """
-    if assume_yes or clear_cmd not in ("creds", "hosts", "all"):
+    if assume_yes or not (creds or hosts):
         return True
 
     # Nothing to delete -> don't bother asking (the clear reports "unchanged").
-    if not _has_clearable_data(clear_cmd):
+    if not _has_clearable_data(creds, hosts):
         return True
 
     from aliasr.core.config import NXC_BLOCK_BULK_DELETE
@@ -154,48 +154,40 @@ def confirm_clear(clear_cmd: str, assume_yes: bool = False) -> bool:
     return answer in ("y", "yes")
 
 
-def _has_clearable_data(clear_cmd: str) -> bool:
+def _has_clearable_data(creds: bool, hosts: bool) -> bool:
     """Whether a destructive clear would actually remove credentials/hosts.
 
-    Considers the aliasr store and, unless blocked, NetExec. Cache/globals are
-    not counted — they clear without a prompt regardless.
+    Considers the aliasr store and, unless blocked, NetExec. Globals are not
+    counted — they clear without a prompt regardless.
     """
     from aliasr.core.config import NXC_BLOCK_BULK_DELETE
     from aliasr.core.creds import has_stored_creds
     from aliasr.core.hosts import has_stored_hosts
 
-    want_creds = clear_cmd in ("creds", "all")
-    want_hosts = clear_cmd in ("hosts", "all")
-
-    if want_creds and has_stored_creds():
+    if creds and has_stored_creds():
         return True
-    if want_hosts and has_stored_hosts():
+    if hosts and has_stored_hosts():
         return True
     if not NXC_BLOCK_BULK_DELETE:
         try:
             from aliasr.core import nxc
 
-            if want_creds and nxc.read_creds():
+            if creds and nxc.read_creds():
                 return True
-            if want_hosts and nxc.read_hosts():
+            if hosts and nxc.read_hosts():
                 return True
         except Exception:
             pass
     return False
 
 
-def clear_flags(cache: bool, globals: bool, creds: bool, hosts: bool = False) -> bool:
+def clear_flags(globals: bool, creds: bool, hosts: bool = False) -> bool:
     """Clear selected stores, reporting whether each actually changed.
 
     Each clear returns True when it removed something; the printed line reflects
     that ("... cleared successfully!" vs "... unchanged").
     """
     tasks: list[tuple[str, callable]] = []
-
-    if cache:
-        from aliasr.core.cheats import clear_cache
-
-        tasks.append(("Cache", clear_cache))
 
     if globals:
         from aliasr.core.globals import clear_globals
