@@ -100,6 +100,19 @@ def _parser() -> argparse.ArgumentParser:
     list_sub.add_parser("creds", help="List all saved credentials")
     list_sub.add_parser("all", help="List both globals and credentials")
 
+    # ---------- Init ----------
+
+    init = sub.add_parser(
+        "init", help="Append aliasr's zsh/tmux integration to your dotfiles"
+    )
+    init.add_argument(
+        "target", nargs="?", choices=["zsh", "tmux", "all"], default="all",
+        help="Which config to set up (default: all)",
+    )
+    init.add_argument(
+        "-y", "--yes", action="store_true", help="Skip the per-file confirmation"
+    )
+
     # ---------- Clear ----------
 
     clear = sub.add_parser(
@@ -182,6 +195,10 @@ def main() -> int:
     if args.cmd == "list":
         from aliasr.core.list import run_list
         return run_list(args.list_cmd)
+
+    if args.cmd == "init":
+        from aliasr.core.init import run_init
+        return run_init(args.target, args.yes)
 
     if args.cmd == "scan":
         from aliasr.core.scan import run_scan_cli
