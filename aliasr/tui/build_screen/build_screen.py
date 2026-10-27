@@ -1,6 +1,5 @@
 import os
 import re
-import base64
 from math import ceil
 from pathlib import Path
 
@@ -14,7 +13,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Input, OptionList, Static
 from textual_autocomplete import DropdownItem, TargetState
 
-from aliasr.core.assemble import assemble
+from aliasr.core.build import render
 from aliasr.core.cheats import get_param_refs
 from aliasr.core.config import BUILD_COLUMNS, GLOBALS_AUTO_KRB, kb_build_screen
 from aliasr.core.globals import get_history, load_globals, save_global
@@ -51,14 +50,6 @@ def _full_credential(partial, creds):
         candidates,
         key=lambda c: sum(bool(x) for x in (c.username, c.password, c.hash, c.domain)),
     )
-
-
-def _apply_tags(cmd: str, tags: frozenset[str]) -> str:
-    if "ps_encode" in tags:
-        return f"powershell -e {base64.b64encode(cmd.encode('utf-16le')).decode('ascii')}"
-    if "sh_encode" in tags:
-        return f"echo {base64.b64encode(cmd.encode('utf-8')).decode('ascii')} | base64 -d | /bin/sh"
-    return cmd
 
 
 def _merge_unique(*lists: list[str]) -> list[str]:
@@ -272,14 +263,6 @@ class BuildScreen(ModalScreen[str | None]):
         self._refresh_preview()
 
     # ---------- Helpers ----------
-
-    def _replace_placeholders(self, cmd: str) -> str:
-        """Replace placeholders with values."""
-        def repl(m: re.Match[str]) -> str:
-            token = m.group(1)
-            name = token.split("|", 1)[0]
-            return self._values.get(name, "")
-        return PLACEHOLDER_RE.sub(repl, cmd)
 
     def _build_preview(self) -> Text:
         """Build preview text with styled substitutions."""
@@ -552,54 +535,27 @@ class BuildScreen(ModalScreen[str | None]):
                 dc_fqdn=d_fqdn if dc_touched else None,
             )
 
-        # Rest of the method...
-        built = self._replace_placeholders(self._cmd)
-
+        # Build the final command. Placeholder fill, the skew/encode tag
+        # handling and the `arun`/`AR_SKEW` chain all live in core.build.render
+        # (shared with headless callers); the TUI applies variations in its own
+        # screen, so `self._cmd` arrives already expanded (selections=None here).
+        #
+        # Skew fallback: the skew target is the DC whose clock we sync to -- an
+        # engagement-wide value. render prefers an ip/dc_ip the build screen is
+        # showing, else this global fallback, so a cheat with no <ip>/<dc_ip>
+        # placeholder (e.g. a lone getTGT) still runs skewed.
         prefix = (
             self._prefix_global if (self._exp_prefix and self._prefix_global) else ""
         )
-
-        # `#faketime` cheats run under skewrun to correct DC clock skew. The
-        # per-step skewrun guard lives in the `arun` wrapper now; we only hand it
-        # the target via AR_SKEW, which assemble emits as a leading `export` for a
-        # multi-line chain or an inline `AR_SKEW=... arun` for a single command.
-        #
-        # The skew target is the DC whose clock we sync to -- an engagement-wide
-        # value, not something the command need reference. Prefer an ip/dc_ip the
-        # build screen is showing (the user may have edited it), else fall back to
-        # the global, so a cheat with no <ip>/<dc_ip> placeholder (e.g. a lone
-        # getTGT) still gets a target instead of silently running unskewed.
-        skew_target = (
-            (
-                self._values.get("ip")
-                or self._values.get("dc_ip")
-                or self.app.globals.get("ip", "")
-                or self.app.globals.get("dc_ip", "")
-            )
-            if "faketime" in self._tags
-            else None
+        final_cmd = render(
+            self._cmd,
+            self._values,
+            build_tags=self._tags,
+            cheat_tags=self._cheat_tags,
+            skew_fallback=self.app.globals.get("ip", "")
+            or self.app.globals.get("dc_ip", ""),
+            prefix=prefix,
         )
-
-        # `#target/local` cheats are injected into a foreign ssh/winrm shell that
-        # won't have `arun`/`skewrun`, so they must emit bare (see assemble).
-        local = "target/local" in self._cheat_tags
-
-        def _wrap(c: str) -> str:
-            if prefix:
-                c = prefix.replace("{cmd}", c) if "{cmd}" in prefix else f"{prefix}{c}"
-            return c
-
-        if "ps_encode" in self._tags:
-            # PowerShell: the arun chain is bash-only, so prefix the whole command
-            # outside the base64 payload.
-            final_cmd = _wrap(_apply_tags(built, self._tags))
-        else:
-            # Bash/sh: stitch commands into an `arun` chain (announce + skewrun),
-            # then apply any encode tag.
-            final_cmd = _apply_tags(
-                assemble(built, skew_target=skew_target, local=local, wrap=_wrap),
-                self._tags,
-            )
 
         if self._exp_krb and self._krb_global:
             shell = os.environ.get("SHELL", "/bin/sh")
