@@ -10,9 +10,11 @@ class CheatHeader(Static):
             txt.truncate(width, overflow="ellipsis")
             return txt
 
-        theme = self.app.available_themes.get(self.app.theme)
-        title_txt = cut(Text(title or "", style=theme.warning))
-        cmd_txt = cut(Text(self._one_line(cmd_first_line), style=theme.foreground))
+        theme = self.app.current_theme
+        title_txt = cut(Text(title or "", style=theme.warning or ""))
+        cmd_txt = cut(
+            Text(self._one_line(cmd_first_line), style=theme.foreground or "")
+        )
         self.update(title_txt + Text("\n") + cmd_txt)
 
     @staticmethod

@@ -7,7 +7,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Input, OptionList, Static, TabbedContent, TabPane, Tabs
 from textual.widgets.option_list import Option
 
-from aliasr.core.config import kb_root, kb_build_screen
+from aliasr.core.config import kb_build_screen, kb_root
 from aliasr.tui.utils.tables import cred_header, cred_option
 
 
@@ -17,12 +17,10 @@ class ParamScreen(ModalScreen[str | dict[str, str] | None]):
     BINDINGS = [
         Binding("escape", "cancel"),
         Binding(kb_build_screen("param_screen"), "cancel"),
-
         Binding("up", "list_up"),
         Binding("down", "list_down"),
         Binding("pageup", "list_page_up"),
         Binding("pagedown", "list_page_down"),
-
         Binding(kb_root("prev_tab"), "prev_tab"),
         Binding(kb_root("next_tab"), "next_tab"),
     ]
@@ -207,7 +205,7 @@ class ParamScreen(ModalScreen[str | dict[str, str] | None]):
             i = opt.id if isinstance(opt.id, int) else None
             cred = (
                 self._creds[i]
-                if (i is not None and 0 <= i < len(self._creds or []))
+                if (i is not None and self._creds and 0 <= i < len(self._creds))
                 else None
             )
             self._dismiss_for_cred(cred)
@@ -312,7 +310,7 @@ class ParamScreen(ModalScreen[str | dict[str, str] | None]):
         idx = event.option.id if isinstance(event.option.id, int) else None
         cred = (
             self._creds[idx]
-            if (idx is not None and 0 <= idx < len(self._creds or []))
+            if (idx is not None and self._creds and 0 <= idx < len(self._creds))
             else None
         )
         self._dismiss_for_cred(cred)

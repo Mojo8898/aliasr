@@ -18,7 +18,9 @@ def _deskewed_env() -> dict[str, str] | None:
     import os
 
     preload = os.environ.get("LD_PRELOAD", "")
-    faketime_vars = [k for k in os.environ if k == "FAKETIME" or k.startswith("FAKETIME_")]
+    faketime_vars = [
+        k for k in os.environ if k == "FAKETIME" or k.startswith("FAKETIME_")
+    ]
     if "faketime" not in preload.lower() and not faketime_vars:
         return None
 

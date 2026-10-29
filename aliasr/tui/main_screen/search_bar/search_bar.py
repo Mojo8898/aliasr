@@ -1,12 +1,17 @@
+from typing import TYPE_CHECKING, cast
+
 from textual import on
 from textual.binding import Binding
-from textual.containers import Vertical, Horizontal
-from textual.widgets import Input, Static, Tab, Tabs, Select
+from textual.containers import Horizontal, Vertical
+from textual.widgets import Input, Select, Static, Tab, Tabs
 
 from aliasr.core.config import CHEATS_DEFAULT_GROUPING, kb_root
+from aliasr.tui.main_screen.search_bar.indicators import Indicators
 from aliasr.tui.utils.common import widget_id
 from aliasr.tui.utils.smart_complete import SmartComplete
-from aliasr.tui.main_screen.search_bar.indicators import Indicators
+
+if TYPE_CHECKING:
+    from aliasr.tui.main_screen.main_screen import MainScreen
 
 
 class CheatTags(Tabs):
@@ -295,13 +300,16 @@ class MainSearch(Vertical):
 
     # ---------- Helpers ----------
 
-    def _main_screen(self):
+    def _main_screen(self) -> "MainScreen | None":
         scr = self.app.screen
-        return scr if scr.__class__.__name__ == "MainScreen" else None
+        return (
+            cast("MainScreen", scr) if scr.__class__.__name__ == "MainScreen" else None
+        )
 
     def _get_tag_candidates(self) -> list[str]:
         """Get tag names that match current filters."""
         from textual.widgets import Select
+
         from aliasr.tui.utils.common import select_value
 
         # Get filter values ('' when nothing is selected)
@@ -350,6 +358,7 @@ class MainSearch(Vertical):
     def _apply_filters(self) -> None:
         """Apply all filters (target, OS, and tag)."""
         from textual.widgets import Select
+
         from aliasr.tui.utils.common import select_value
 
         tabs = self.query_one("#tabs", CheatTags)
@@ -369,7 +378,6 @@ class MainSearch(Vertical):
             # Check if current tag is still visible
             current_active = tabs.active
             if current_active and current_active in tabs._id_to_tag:
-
                 # If current tag is hidden, switch to "all" or first visible
                 try:
                     tab_widget = tabs.query_one(f"#{current_active}", Tab)
@@ -379,7 +387,7 @@ class MainSearch(Vertical):
                             t for t in tabs.query(Tab) if getattr(t, "display", True)
                         ]
                         if visible_tabs:
-                            tabs.active = visible_tabs[0].id
+                            tabs.active = visible_tabs[0].id or ""
                             scr.current_tag = tabs._id_to_tag.get(
                                 visible_tabs[0].id, "all"
                             )
@@ -484,8 +492,10 @@ class MainSearch(Vertical):
 
         tag_type_select.set_options(options)
 
-        if CHEATS_DEFAULT_GROUPING:
-            # Check if the configured default exists in the options
-            if CHEATS_DEFAULT_GROUPING.lower() in self._tag_types:
-                # Filters are applied by the caller (MainScreen.on_mount)
-                tag_type_select.value = CHEATS_DEFAULT_GROUPING.lower()
+        # Check if the configured default exists in the options
+        if (
+            CHEATS_DEFAULT_GROUPING
+            and CHEATS_DEFAULT_GROUPING.lower() in self._tag_types
+        ):
+            # Filters are applied by the caller (MainScreen.on_mount)
+            tag_type_select.value = CHEATS_DEFAULT_GROUPING.lower()

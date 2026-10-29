@@ -4,7 +4,7 @@ from textual.app import App
 from textual.binding import Binding
 from textual.widgets import Input
 
-from aliasr.core.config import PKG_DIR, kb_root, THEME
+from aliasr.core.config import PKG_DIR, THEME, kb_root
 from aliasr.tui.main_screen.globals_grid import GlobalsGrid
 from aliasr.tui.main_screen.main_screen import MainScreen
 from aliasr.tui.theme import BUNDLED_THEMES
@@ -64,7 +64,7 @@ class Aliasr(App[None]):
         widget (~40 ms of startup), so set it silently and do what
         App._watch_theme does, minus that refresh.
         """
-        theme = BUNDLED_THEMES.get(THEME.name)
+        theme = BUNDLED_THEMES.get(THEME.name or "")
         if theme:
             self.register_theme(theme)
         name = THEME.name
@@ -103,7 +103,7 @@ class Aliasr(App[None]):
 
             if w.value:
                 copy_to_clipboard(w.value or "")
-                self.notify("Copied Input Value!", severity="success", timeout=2.5)
+                self.notify("Copied Input Value!", severity="success", timeout=2.5)  # pyright: ignore[reportArgumentType]
 
     def action_safe_exit(self) -> None:
         for grid in self.query(GlobalsGrid):

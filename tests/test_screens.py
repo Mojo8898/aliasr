@@ -7,9 +7,9 @@ regression. This is the net that catches a Textual-version breakage.
 
 from textual.widgets import Input
 
-from aliasr.tui.main_screen.main_screen import MainScreen
 from aliasr.tui.creds_screen.creds_screen import CredsScreen
 from aliasr.tui.globals_screen.globals_screen import GlobalsScreen
+from aliasr.tui.main_screen.main_screen import MainScreen
 
 
 async def test_cheats_populate_on_boot(app):
@@ -151,7 +151,9 @@ async def test_focus_grid_binding_tracks_grid_visibility(app):
 
 
 def _footer_labels(screen) -> set[str]:
-    return {b.description for _, b, enabled, _ in screen.active_bindings.values() if enabled}
+    return {
+        b.description for _, b, enabled, _ in screen.active_bindings.values() if enabled
+    }
 
 
 async def test_param_pick_does_not_reopen_autocomplete(app):
@@ -168,7 +170,9 @@ async def test_param_pick_does_not_reopen_autocomplete(app):
 
     # A bundled cheat file that defines references for <lin_dir>, so the
     # param screen has options and stays open.
-    md = Path(next(c.path for c in app.cheats if c.path.endswith("linux/linux_privesc.md")))
+    md = Path(
+        next(c.path for c in app.cheats if c.path.endswith("linux/linux_privesc.md"))
+    )
     async with app.run_test(size=(160, 45)) as pilot:
         await pilot.pause()
         await app.push_screen(BuildScreen("t", "cd <lin_dir>", md))
@@ -235,10 +239,14 @@ async def test_build_preview_scrolls_and_panel_fits(app):
     """A long (multi-line) command must scroll inside its own #preview-scroll box
     rather than growing the panel past the screen edges."""
     from pathlib import Path
+
     from textual.containers import VerticalScroll
+
     from aliasr.tui.build_screen.build_screen import BuildScreen
 
-    long_cmd = "\n".join(f"step{i} <ip> -u <user> ; \\" for i in range(25)) + "\nfinal <ip>"
+    long_cmd = (
+        "\n".join(f"step{i} <ip> -u <user> ; \\" for i in range(25)) + "\nfinal <ip>"
+    )
     async with app.run_test(size=(90, 20)) as pilot:
         await pilot.pause()
         screen = BuildScreen("Test", long_cmd, Path("x.md"))
@@ -248,7 +256,7 @@ async def test_build_preview_scrolls_and_panel_fits(app):
         panel = screen.query_one("#panel")
         ps = screen.query_one("#preview-scroll", VerticalScroll)
         # Panel stays within the screen; preview box is capped and scrollable.
-        assert 0 <= panel.region.y and panel.region.bottom <= app.size.height
+        assert panel.region.y >= 0 and panel.region.bottom <= app.size.height
         assert ps.max_scroll_y > 0, "long command should overflow the capped preview"
         assert not ps.can_focus, "preview box should stay out of the Tab cycle"
         ps.scroll_end(animate=False)
@@ -261,11 +269,14 @@ async def test_variations_panel_fits_and_options_visible(app):
     options: the panel must fit and the option list must be visible on-screen."""
     from textual.containers import VerticalScroll
     from textual.widgets import OptionList
-    from aliasr.tui.build_screen.variations_screen import VariationsScreen
+
     from aliasr.core.variations import Variation
+    from aliasr.tui.build_screen.variations_screen import VariationsScreen
 
     long_cmd = "\n".join(f"step{i} <ip> ; \\" for i in range(25)) + "\nfinal <ip>"
-    variations = {"ip": [Variation(f"host{i}", f"10.0.0.{i}", "ip", "") for i in range(30)]}
+    variations = {
+        "ip": [Variation(f"host{i}", f"10.0.0.{i}", "ip", "") for i in range(30)]
+    }
     async with app.run_test(size=(90, 20)) as pilot:
         await pilot.pause()
         screen = VariationsScreen(long_cmd, variations)
@@ -275,7 +286,7 @@ async def test_variations_panel_fits_and_options_visible(app):
         panel = screen.query_one("#panel")
         ps = screen.query_one("#preview-scroll", VerticalScroll)
         lst = screen.query_one("#ip-list", OptionList)
-        assert 0 <= panel.region.y and panel.region.bottom <= app.size.height
+        assert panel.region.y >= 0 and panel.region.bottom <= app.size.height
         assert ps.max_scroll_y > 0
         assert lst.option_count == 30
         assert lst.region.height > 0 and lst.region.bottom <= app.size.height
@@ -285,13 +296,20 @@ async def test_variations_preview_is_head_aware(app, monkeypatch):
     """A single collapsed auth pick renders per command in the live preview:
     `-k` on the bloodyAD line, `--use-kcache` on the nxc line, at once."""
     from textual.widgets import Static
-    from aliasr.tui.build_screen.variations_screen import VariationsScreen
-    from aliasr.core import variations as V
 
-    monkeypatch.setattr(V, "_VARS", {
-        "bloodyAD": {"auth": {"Password": "-p '<password>'", "Kerberos": "-k"}},
-        "nxc": {"auth": {"Password": "-p '<password>'", "Kerberos": "--use-kcache"}},
-    })
+    from aliasr.core import variations as V
+    from aliasr.tui.build_screen.variations_screen import VariationsScreen
+
+    monkeypatch.setattr(
+        V,
+        "_VARS",
+        {
+            "bloodyAD": {"auth": {"Password": "-p '<password>'", "Kerberos": "-k"}},
+            "nxc": {
+                "auth": {"Password": "-p '<password>'", "Kerberos": "--use-kcache"}
+            },
+        },
+    )
     monkeypatch.setattr(V, "_UNIVERSAL_VARS", {})
     monkeypatch.setattr(V, "_LOADED", True)
 
@@ -311,16 +329,18 @@ async def test_variations_preview_is_head_aware(app, monkeypatch):
         await pilot.pause()
 
         rendered = screen.query_one("#preview", Static).render()
-        plain = rendered.plain if hasattr(rendered, "plain") else str(rendered)
-        assert "-k get" in plain                      # bloodyAD line
-        assert "--use-kcache --bloodhound" in plain   # nxc line
+        plain = str(rendered)
+        assert "-k get" in plain  # bloodyAD line
+        assert "--use-kcache --bloodhound" in plain  # nxc line
 
 
 async def test_build_short_command_stays_compact(app):
     """A short command must not inflate the preview box — it should shrink to the
     content it needs (regression: VerticalScroll wrapper filled to max-height)."""
     from pathlib import Path
+
     from textual.containers import VerticalScroll
+
     from aliasr.tui.build_screen.build_screen import BuildScreen
 
     async with app.run_test(size=(100, 40)) as pilot:
@@ -338,6 +358,7 @@ async def test_build_preview_shows_commands_not_separator(app):
     """A newline-separated multi-command cheat previews the commands themselves;
     the build-time separator machinery (the `s` function / banners) never shows."""
     from pathlib import Path
+
     from aliasr.tui.build_screen.build_screen import BuildScreen
 
     cmd = "rm /tmp/x\nnxc smb <ip>\ntee out"
@@ -348,7 +369,8 @@ async def test_build_preview_shows_commands_not_separator(app):
         await app.push_screen(b)
         await pilot.pause()
         await pilot.pause()
-        rendered = b._preview.render().plain
+        assert b._preview is not None
+        rendered = str(b._preview.render())
         assert "rm /tmp/x" in rendered and "tee out" in rendered
         assert "s(){" not in rendered and "===" not in rendered
 
@@ -360,6 +382,7 @@ async def test_build_submit_assembles_multi_command(app):
     import os
     import subprocess
     from pathlib import Path
+
     from aliasr.tui.build_screen.build_screen import BuildScreen
 
     captured = {}
@@ -390,13 +413,18 @@ async def test_build_faketime_tag_exports_ar_skew(app):
     prefixes each step with `arun`; the skewrun guard lives in `arun` now, so no
     inline `if [ -n "$FAKETIME" ]`/`skewrun` appears in the built string."""
     from pathlib import Path
+
     from aliasr.tui.build_screen.build_screen import BuildScreen
 
     captured = {}
     async with app.run_test(size=(100, 40)) as pilot:
         await pilot.pause()
-        b = BuildScreen("T", "nxc smb <ip> -k\ncertipy find <ip> -k", Path("x.md"),
-                        tags=frozenset({"faketime"}))
+        b = BuildScreen(
+            "T",
+            "nxc smb <ip> -k\ncertipy find <ip> -k",
+            Path("x.md"),
+            tags=frozenset({"faketime"}),
+        )
         await app.push_screen(b, lambda r: captured.__setitem__("cmd", r))
         await pilot.pause()
         await pilot.pause()
@@ -418,13 +446,15 @@ async def test_build_faketime_tag_exports_ar_skew(app):
 async def test_build_submit_ps_encode_skips_bash_separator(app):
     """A ps_encode (PowerShell) cheat must NOT get the bash `s` separator."""
     from pathlib import Path
+
     from aliasr.tui.build_screen.build_screen import BuildScreen
 
     captured = {}
     async with app.run_test(size=(100, 40)) as pilot:
         await pilot.pause()
-        b = BuildScreen("T", "Get-Thing\nGet-Other", Path("x.md"),
-                        tags=frozenset({"ps_encode"}))
+        b = BuildScreen(
+            "T", "Get-Thing\nGet-Other", Path("x.md"), tags=frozenset({"ps_encode"})
+        )
         await app.push_screen(b, lambda r: captured.__setitem__("cmd", r))
         await pilot.pause()
         await pilot.pause()
@@ -445,6 +475,7 @@ async def test_build_submit_prefix_multi_command_is_valid_shell(app):
     import os
     import subprocess
     from pathlib import Path
+
     from aliasr.tui.build_screen.build_screen import BuildScreen
 
     captured = {}
@@ -473,9 +504,10 @@ async def test_preview_scroll_keybindings(app):
     """ctrl+up/down scroll the preview one line; ctrl+pageup/pagedown by a page,
     in both the build and variations screens."""
     from pathlib import Path
+
+    from aliasr.core.variations import Variation
     from aliasr.tui.build_screen.build_screen import BuildScreen
     from aliasr.tui.build_screen.variations_screen import VariationsScreen
-    from aliasr.core.variations import Variation
 
     long_cmd = "\n".join(f"echo step{i} <ip>" for i in range(30))
 
@@ -491,13 +523,13 @@ async def test_preview_scroll_keybindings(app):
         assert one == 1
         await pilot.press("ctrl+pagedown")
         await pilot.pause()
-        assert ps.scroll_offset.y > one          # page moved further
+        assert ps.scroll_offset.y > one  # page moved further
         await pilot.press("ctrl+up")
         await pilot.pause()
         page = ps.scroll_offset.y
         await pilot.press("ctrl+pageup")
         await pilot.pause()
-        assert ps.scroll_offset.y < page          # paged back up
+        assert ps.scroll_offset.y < page  # paged back up
         await app.pop_screen()
         await pilot.pause()
 
@@ -545,6 +577,7 @@ async def _submit_build(app, pilot, screen):
 async def test_build_multiline_emits_arun_chain(app):
     """A multi-line, non-local cheat builds into an `arun` chain (no inline s()/separator)."""
     from pathlib import Path
+
     from aliasr.tui.build_screen.build_screen import BuildScreen
 
     async with app.run_test(size=(120, 40)) as pilot:
@@ -559,6 +592,7 @@ async def test_build_multiline_emits_arun_chain(app):
 async def test_build_target_local_emits_bare(app):
     """A #target/local cheat is injected into a foreign shell, so it emits bare."""
     from pathlib import Path
+
     from aliasr.tui.build_screen.build_screen import BuildScreen
 
     async with app.run_test(size=(120, 40)) as pilot:
@@ -567,8 +601,11 @@ async def test_build_target_local_emits_bare(app):
             app,
             pilot,
             BuildScreen(
-                "t", "echo a\necho b", Path("x.md"),
-                frozenset(), frozenset({"target/local"}),
+                "t",
+                "echo a\necho b",
+                Path("x.md"),
+                frozenset(),
+                frozenset({"target/local"}),
             ),
         )
     assert cmd == "echo a ; \\\necho b"
@@ -581,14 +618,18 @@ async def test_build_single_faketime_uses_ip_global_for_skew(app):
     engagement global, not silently run unskewed. AR_SKEW is scoped to the one
     arun call, not exported."""
     from pathlib import Path
+
     from aliasr.tui.build_screen.build_screen import BuildScreen
 
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.globals["ip"] = "10.0.0.9"  # engagement DC; not referenced by the command
         cmd = await _submit_build(
-            app, pilot,
-            BuildScreen("t", "getTGT.py dom/user", Path("x.md"), frozenset({"faketime"})),
+            app,
+            pilot,
+            BuildScreen(
+                "t", "getTGT.py dom/user", Path("x.md"), frozenset({"faketime"})
+            ),
         )
     assert cmd == "AR_SKEW=10.0.0.9 arun getTGT.py dom/user"
     assert "export AR_SKEW" not in cmd

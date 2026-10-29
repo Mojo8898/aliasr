@@ -1,10 +1,10 @@
+import contextlib
 import os
 import tomllib
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
-
 
 # ---------- Models ----------
 
@@ -167,10 +167,8 @@ def _ensure_user_env() -> None:
         new_globals = ALIASR_HOME / "globals.json"
         legacy = _expand_path("~/.aliasr.json")
         if not new_globals.exists() and legacy.is_file():
-            try:
+            with contextlib.suppress(OSError):
                 legacy.replace(new_globals)
-            except OSError:
-                pass
 
 
 def _deep_update(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
@@ -266,13 +264,19 @@ def _build_config() -> Config:
     g_conf_raw = dict(merged["globals"])
     defaults_dict = {}
 
-    if "globals" in user and isinstance(user["globals"], dict) and "defaults" in user["globals"]:
+    if (
+        "globals" in user
+        and isinstance(user["globals"], dict)
+        and "defaults" in user["globals"]
+    ):
         for k, v in user["globals"]["defaults"].items():
             defaults_dict[k] = [str(i) for i in v] if isinstance(v, list) else str(v)
     else:
         if "defaults" in g_conf_raw:
             for k, v in g_conf_raw["defaults"].items():
-                defaults_dict[k] = [str(i) for i in v] if isinstance(v, list) else str(v)
+                defaults_dict[k] = (
+                    [str(i) for i in v] if isinstance(v, list) else str(v)
+                )
 
     g_conf = GlobalsConf(
         path=_resolve_under_home(str(g_conf_raw["path"])),
@@ -461,8 +465,12 @@ def _toml_value(v: Any) -> str:
 def _toml_section(name: str, table: dict[str, Any]) -> str:
     """Serialize a whole table (and any nested sub-tables) as a TOML block."""
     out = [f"\n[{name}]\n"]
-    out += [f"{k} = {_toml_value(v)}\n" for k, v in table.items() if not isinstance(v, dict)]
-    out += [_toml_section(f"{name}.{k}", v) for k, v in table.items() if isinstance(v, dict)]
+    out += [
+        f"{k} = {_toml_value(v)}\n" for k, v in table.items() if not isinstance(v, dict)
+    ]
+    out += [
+        _toml_section(f"{name}.{k}", v) for k, v in table.items() if isinstance(v, dict)
+    ]
     return "".join(out)
 
 

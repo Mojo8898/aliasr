@@ -9,6 +9,7 @@ Writing profile.sh cannot change an already-running shell's environment; it
 takes effect the next time a shell sources the file -- a new shell, or the
 ``exec zsh`` that exegol's ``exh`` wrapper performs.
 """
+
 import re
 from pathlib import Path
 from threading import Lock
@@ -96,7 +97,9 @@ def _write_vars(mapping: dict[str, str], path: Path | None) -> None:
                 if name in mapping:
                     value = mapping[name]
                     safe = value.replace("'", "'\\''")
-                    lines[i] = f"export {name}='{safe}'\n" if value else f"unset {name}\n"
+                    lines[i] = (
+                        f"export {name}='{safe}'\n" if value else f"unset {name}\n"
+                    )
             p.write_text("".join(lines), encoding="utf-8")
         except OSError:
             pass

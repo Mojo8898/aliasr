@@ -10,6 +10,7 @@ is deleted inside aliasr it is deleted back out of NetExec too (across every
 protocol DB). Reads are strictly read-only; the only writes this module makes
 are those propagated deletions.
 """
+
 from __future__ import annotations
 
 import configparser
@@ -21,7 +22,6 @@ from pathlib import Path
 
 from aliasr.core.creds import Credential
 from aliasr.core.hosts import Host
-
 
 # An NT hash (32 hex) optionally prefixed with its LM half (``LM:NT``), which is
 # how NetExec records ``credtype='hash'`` secrets.
@@ -98,7 +98,9 @@ def _host_fqdn(hostname: str, domain: str) -> str:
     return hostname
 
 
-def _to_credential(domain: str, username: str, secret: str, credtype: str) -> Credential | None:
+def _to_credential(
+    domain: str, username: str, secret: str, credtype: str
+) -> Credential | None:
     """Map a NetExec users row onto an aliasr :class:`Credential`.
 
     ``credtype`` decides where the secret lands: ``plaintext`` → password,

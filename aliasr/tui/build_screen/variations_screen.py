@@ -16,15 +16,12 @@ class VariationsScreen(ModalScreen[dict[str, str] | None]):
     BINDINGS = [
         Binding("escape", "cancel"),
         Binding(kb_build_screen("variations_screen"), "cancel"),
-
         Binding("up", "list_up"),
         Binding("down", "list_down"),
         Binding("pageup", "list_page_up"),
         Binding("pagedown", "list_page_down"),
-
         Binding(kb_root("prev_tab"), "prev_tab"),
         Binding(kb_root("next_tab"), "next_tab"),
-
         Binding("ctrl+up", "preview_up", show=False),
         Binding("ctrl+down", "preview_down", show=False),
         Binding("ctrl+pageup", "preview_page_up", show=False),
@@ -40,7 +37,9 @@ class VariationsScreen(ModalScreen[dict[str, str] | None]):
         self._cmd = cmd
         self._vars = all_variations
         self._sel: dict[str, str] = {}
-        self._preview_values: dict[str, str] = {}  # Track highlighted values for preview
+        self._preview_values: dict[
+            str, str
+        ] = {}  # Track highlighted values for preview
         self._lists: dict[str, OptionList] = {}
         self._filters: dict[str, Input] = {}
         self._params = list(self._vars.keys())
@@ -68,10 +67,8 @@ class VariationsScreen(ModalScreen[dict[str, str] | None]):
             self.dismiss(None)
             return
 
-        # hide tab strip if only one pane
         tc = self._tc()
         tc.query_one(Tabs).can_focus = False
-        tc.show_tabs = len(self._params) > 1
 
         for p in self._params:
             lst = self.query_one(f"#{p}-list", OptionList)
@@ -86,13 +83,13 @@ class VariationsScreen(ModalScreen[dict[str, str] | None]):
             if lst.option_count:
                 lst.highlighted = 0
                 # Initialize preview value for this parameter
-                self._preview_values[p] = lst.get_option_at_index(0).id
+                self._preview_values[p] = lst.get_option_at_index(0).id or ""
 
         # ensure a valid active pane and focus its filter
         if tc.active not in self._params and self._params:
             tc.active = self._params[0]
         self._filters[self._active_param()].focus()
-        
+
         # Initial preview update
         self._update_preview()
 
@@ -122,9 +119,10 @@ class VariationsScreen(ModalScreen[dict[str, str] | None]):
             return
 
         import re
+
         from aliasr.core.variations import command_head, lookup_value
 
-        theme = self.app.available_themes.get(self.app.theme)
+        theme = self.app.current_theme
         placeholder_re = re.compile(r"<([^>\s]+)>")
         text = Text()
 
@@ -135,7 +133,7 @@ class VariationsScreen(ModalScreen[dict[str, str] | None]):
             pos = 0
             for match in placeholder_re.finditer(line):
                 if match.start() > pos:
-                    text.append(line[pos:match.start()])
+                    text.append(line[pos : match.start()])
                 param_name = match.group(1).split("|", 1)[0]
                 key = self._preview_values.get(param_name)
                 value = lookup_value(head, param_name, key) if key else None
@@ -154,7 +152,7 @@ class VariationsScreen(ModalScreen[dict[str, str] | None]):
         if not lst or lst.option_count == 0:
             return
         idx = lst.highlighted if lst.highlighted is not None else 0
-        self._sel[self._active_param()] = lst.get_option_at_index(idx).id
+        self._sel[self._active_param()] = lst.get_option_at_index(idx).id or ""
 
     def _filter_param(self, param: str, query: str) -> None:
         lst = self._lists[param]
@@ -177,14 +175,16 @@ class VariationsScreen(ModalScreen[dict[str, str] | None]):
         if lst.option_count:
             lst.highlighted = 0
             # Update preview value for this parameter
-            self._preview_values[param] = lst.get_option_at_index(0).id
+            self._preview_values[param] = lst.get_option_at_index(0).id or ""
             self._update_preview()
 
     def _on_highlight_changed(self, param: str) -> None:
         """Called when the highlighted option changes for a parameter."""
         lst = self._lists[param]
         if lst.highlighted is not None and lst.option_count > 0:
-            self._preview_values[param] = lst.get_option_at_index(lst.highlighted).id
+            self._preview_values[param] = (
+                lst.get_option_at_index(lst.highlighted).id or ""
+            )
             self._update_preview()
 
     # ---------- Actions ----------
@@ -237,9 +237,9 @@ class VariationsScreen(ModalScreen[dict[str, str] | None]):
         if len(self._params) == 1 and self._params[0] not in self._sel:
             lst = self._active_list()
             if lst and lst.option_count:
-                self._sel[self._params[0]] = lst.get_option_at_index(
-                    lst.highlighted or 0
-                ).id
+                self._sel[self._params[0]] = (
+                    lst.get_option_at_index(lst.highlighted or 0).id or ""
+                )
         self.dismiss(self._sel)
 
     def action_cancel(self) -> None:
@@ -286,13 +286,13 @@ class VariationsScreen(ModalScreen[dict[str, str] | None]):
         """Update preview when an option is highlighted."""
         for p in self._params:
             if e.control.id == f"{p}-list":
-                self._preview_values[p] = e.option.id
+                self._preview_values[p] = e.option.id or ""
                 self._update_preview()
                 return
 
     @on(OptionList.OptionSelected)
     def _pick(self, e: OptionList.OptionSelected) -> None:
-        self._sel[self._active_param()] = e.option.id
+        self._sel[self._active_param()] = e.option.id or ""
         if len(self._params) > 1:
             for p in self._params:
                 if p not in self._sel:

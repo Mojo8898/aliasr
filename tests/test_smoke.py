@@ -50,7 +50,10 @@ async def test_footer_keys_skip_compact_toggle(app, monkeypatch):
     orig = FooterKey._watch_compact
 
     def watch(self, compact):
-        if not self.has_class("-command-palette") and self.has_class("-compact") != compact:
+        if (
+            not self.has_class("-command-palette")
+            and self.has_class("-compact") != compact
+        ):
             toggles.append(compact)
         orig(self, compact)
 
@@ -58,7 +61,9 @@ async def test_footer_keys_skip_compact_toggle(app, monkeypatch):
     async with app.run_test() as pilot:
         await pilot.pause()
         footer = app.screen.query_one(Footer)
-        keys = [k for k in footer.query(FooterKey) if not k.has_class("-command-palette")]
+        keys = [
+            k for k in footer.query(FooterKey) if not k.has_class("-command-palette")
+        ]
         assert keys, "footer rendered no binding keys"
         assert all(k.compact == footer.compact for k in keys)
         assert not any(k.has_class("-compact") for k in keys)

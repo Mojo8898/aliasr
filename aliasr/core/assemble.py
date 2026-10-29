@@ -109,13 +109,13 @@ def assemble(
     # into the parent env, and arun still skips skewrun when FAKETIME is set).
     if len(cmds) <= 1:
         if skew_target:
-            return "AR_SKEW=%s arun %s" % (shlex.quote(skew_target), w(cmd))
+            return f"AR_SKEW={shlex.quote(skew_target)} arun {w(cmd)}"
         return w(cmd)
 
     parts: list[str] = []
     if skew_target:
-        parts.append("export AR_SKEW=%s" % shlex.quote(skew_target))
+        parts.append(f"export AR_SKEW={shlex.quote(skew_target)}")
     # Unquoted on purpose: a step's trailing `&& export ...` must be seen by the
     # parent shell so its env change survives into later steps.
-    parts.extend("arun %s" % w(c) for c in cmds)
+    parts.extend(f"arun {w(c)}" for c in cmds)
     return _join_steps(parts)

@@ -6,9 +6,9 @@ from textual.screen import ModalScreen
 from textual.widgets import Input, Static
 
 from aliasr.core.globals import normalize_key
+from aliasr.tui.utils.footer import Footer
 from aliasr.tui.utils.grid_nav import GRID_NAV_BINDINGS, grid_nav
 from aliasr.tui.utils.smart_complete import SmartComplete
-from aliasr.tui.utils.footer import Footer
 
 
 class NewGlobal(ModalScreen[tuple[str, str] | None]):
@@ -16,7 +16,6 @@ class NewGlobal(ModalScreen[tuple[str, str] | None]):
 
     BINDINGS = [
         Binding("escape", "cancel"),
-
         *GRID_NAV_BINDINGS,
         Binding("pageup", "sc_page_up"),
         Binding("pagedown", "sc_page_down"),
@@ -65,7 +64,7 @@ class NewGlobal(ModalScreen[tuple[str, str] | None]):
                 else:
                     sc.option_list.action_cursor_down()
             return
-        
+
         grid_nav(self, direction, grid_selector="#grid", item_selector="Input", cols=2)
 
     def action_sc_page_up(self) -> None:

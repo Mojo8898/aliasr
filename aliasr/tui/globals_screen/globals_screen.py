@@ -1,3 +1,5 @@
+from typing import TYPE_CHECKING
+
 from textual import on
 from textual.app import ComposeResult
 from textual.binding import Binding
@@ -14,27 +16,30 @@ from aliasr.core.globals import (
     save_globals,
     save_globals_order,
 )
+from aliasr.tui.utils.footer import Footer
 from aliasr.tui.utils.tables import (
-    global_header,
-    global_option,
     TABLE_BINDINGS,
     TABLE_MOVE_BINDINGS,
+    global_header,
+    global_option,
 )
-from aliasr.tui.utils.footer import Footer
+
+if TYPE_CHECKING:
+    from aliasr.app import Aliasr
 
 
 class GlobalsScreen(ModalScreen[bool | None]):
+    app: "Aliasr"
+    _olist: OptionList
     """Globals manager screen."""
 
     BINDINGS = [
         Binding("escape", "cancel"),
         Binding(kb_root("globals_screen"), "cancel"),
-
         Binding("up", "list_up"),
         Binding("down", "list_down"),
         Binding("pageup", "list_page_up"),
         Binding("pagedown", "list_page_down"),
-
         *TABLE_BINDINGS,
         *TABLE_MOVE_BINDINGS,
         Binding(
@@ -56,7 +61,6 @@ class GlobalsScreen(ModalScreen[bool | None]):
         self._globals_cache: dict[str, str] = dict(getattr(self.app, "globals", {}))
         self._globals_order: list[str] = list(self._globals_cache.keys())
         self._original_order: list[str] = list(self._globals_order)
-        self._olist: OptionList | None = None
 
     # ---------- UI ----------
 
@@ -92,7 +96,7 @@ class GlobalsScreen(ModalScreen[bool | None]):
                     self._olist.add_option(global_option(key, val))
         else:
             m = Matcher(query, case_sensitive=False)
-            scored: list[tuple[int, str, str]] = []
+            scored: list[tuple[float, str, str]] = []
             for key, val in self._globals_cache.items():
                 s = m.match(f"{key} {val}")
                 if s > 0:
@@ -161,6 +165,7 @@ class GlobalsScreen(ModalScreen[bool | None]):
             self._save_now()
 
         from aliasr.tui.globals_screen.global_editor import GlobalEditor
+
         self.app.push_screen(GlobalEditor(key), _done)
 
     def _save_now(self) -> None:
@@ -223,7 +228,7 @@ class GlobalsScreen(ModalScreen[bool | None]):
 
             if val:
                 copy_to_clipboard(val)
-                self.notify(f"Copied {label}!", severity="success", timeout=2.5)
+                self.notify(f"Copied {label}!", severity="success", timeout=2.5)  # pyright: ignore[reportArgumentType]
         except Exception:
             self.notify("Copy Failed :(", severity="error", timeout=2.5)
 
@@ -265,6 +270,7 @@ class GlobalsScreen(ModalScreen[bool | None]):
                     break
 
         from aliasr.tui.globals_screen.new_global import NewGlobal
+
         self.app.push_screen(NewGlobal(), _done)
 
     def action_delete_row(self) -> None:
@@ -303,7 +309,7 @@ class GlobalsScreen(ModalScreen[bool | None]):
             if not found:
                 # Keep same position if possible
                 self._olist.highlighted = min(
-                    current_highlight, self._olist.option_count - 1
+                    current_highlight or 0, self._olist.option_count - 1
                 )
         elif self._olist.option_count > 0:
             self._olist.highlighted = 0

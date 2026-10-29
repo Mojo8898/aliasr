@@ -1,3 +1,5 @@
+from typing import TYPE_CHECKING
+
 from textual import on
 from textual.app import ComposeResult
 from textual.binding import Binding
@@ -6,22 +8,24 @@ from textual.screen import ModalScreen
 from textual.widgets import Input, Static
 
 from aliasr.core.config import GLOBALS_HISTORY, kb_root, kb_table
-from aliasr.tui.utils.smart_complete import SmartComplete
 from aliasr.tui.utils.footer import Footer
+from aliasr.tui.utils.smart_complete import SmartComplete
+
+if TYPE_CHECKING:
+    from aliasr.app import Aliasr
 
 
 class GlobalEditor(ModalScreen[str | None]):
+    app: "Aliasr"
     """Edit a single global value with simple history navigation."""
 
     BINDINGS = [
         Binding("escape", "cancel"),
         Binding(kb_root("globals_editor"), "cancel"),
-
         Binding("up", "cursor_up"),
         Binding("down", "cursor_down"),
         Binding("pageup", "page_up"),
         Binding("pagedown", "page_down"),
-
         Binding(
             kb_table("delete_row"),
             "delete_row",

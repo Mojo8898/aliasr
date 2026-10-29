@@ -21,6 +21,8 @@ def test_local_lhost_empty_when_no_interface(monkeypatch):
 
 
 def test_local_lhost_respects_interface_order(monkeypatch):
-    monkeypatch.setattr(net, "iface_ipv4", lambda name: "1.2.3.4" if name == "wlan0" else "")
+    monkeypatch.setattr(
+        net, "iface_ipv4", lambda name: "1.2.3.4" if name == "wlan0" else ""
+    )
     assert net.local_lhost(("tun0", "eth0")) == ""
     assert net.local_lhost(("wlan0",)) == "1.2.3.4"

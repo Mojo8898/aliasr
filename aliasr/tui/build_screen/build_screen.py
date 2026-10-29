@@ -2,6 +2,7 @@ import os
 import re
 from math import ceil
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from rich.text import Text
 from textual import on
@@ -17,11 +18,13 @@ from aliasr.core.build import render
 from aliasr.core.cheats import get_param_refs
 from aliasr.core.config import BUILD_COLUMNS, GLOBALS_AUTO_KRB, kb_build_screen
 from aliasr.core.globals import get_history, load_globals, save_global
-from aliasr.tui.utils.grid_nav import GRID_NAV_BINDINGS, grid_nav
 from aliasr.tui.utils.common import widget_id
-from aliasr.tui.utils.smart_complete import SmartComplete
 from aliasr.tui.utils.footer import Footer
+from aliasr.tui.utils.grid_nav import GRID_NAV_BINDINGS, grid_nav
+from aliasr.tui.utils.smart_complete import SmartComplete
 
+if TYPE_CHECKING:
+    from aliasr.app import Aliasr
 
 PLACEHOLDER_RE = re.compile(r"<([^>\s]+)>")
 CRED_PARAMS = {"user", "password", "nt_hash"}
@@ -35,6 +38,7 @@ def _full_credential(partial, creds):
     among candidates the richest (most non-empty fields) wins. Falls back to the
     partial when nothing matches (a brand-new credential).
     """
+
     def _consistent(c) -> bool:
         return (
             (not partial.username or c.username == partial.username)
@@ -65,6 +69,7 @@ def _merge_unique(*lists: list[str]) -> list[str]:
 
 
 class BuildScreen(ModalScreen[str | None]):
+    app: "Aliasr"
     BINDINGS = [
         Binding("escape", "cancel", show=False, priority=True),
         Binding("enter", "submit"),
@@ -146,7 +151,11 @@ class BuildScreen(ModalScreen[str | None]):
 
                 # Fill any empty credential parameters
                 for param_name, cred_value in cred_mapping.items():
-                    if param_name in self._params and not self._values.get(param_name) and cred_value:
+                    if (
+                        param_name in self._params
+                        and not self._values.get(param_name)
+                        and cred_value
+                    ):
                         self._values[param_name] = cred_value
 
         # Seed host params from the current engagement's host: exegol-history's
@@ -180,18 +189,24 @@ class BuildScreen(ModalScreen[str | None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="panel"):
-            tag_str = " ".join(f"#{t}" for t in sorted(self._tags)) if self._tags else ""
-            
+            tag_str = (
+                " ".join(f"#{t}" for t in sorted(self._tags)) if self._tags else ""
+            )
+
             with HorizontalGroup(id="title-bar"):
                 yield Static(
                     f"{self._title} [{tag_str}]" if tag_str else self._title, id="title"
                 )
-                
+
                 if self._krb_global:
-                    yield Static("krb5ccname? ", id="krb-toggle", classes="toggle-widget")
+                    yield Static(
+                        "krb5ccname? ", id="krb-toggle", classes="toggle-widget"
+                    )
 
                 if self._prefix_global:
-                    yield Static("aliasr_prefix? ", id="prefix-toggle", classes="toggle-widget")
+                    yield Static(
+                        "aliasr_prefix? ", id="prefix-toggle", classes="toggle-widget"
+                    )
 
             with VerticalScroll(id="preview-scroll"):
                 self._preview = Static(self._cmd, id="preview")
@@ -199,7 +214,7 @@ class BuildScreen(ModalScreen[str | None]):
 
             if self._params:
                 with Grid(id="grid"):
-                    for name, is_cred in self._params.items():
+                    for name, _is_cred in self._params.items():
                         inp_id = widget_id("in-", name)
                         inp = Input(placeholder="Enter value...", id=inp_id)
                         inp.border_title = name
@@ -209,16 +224,19 @@ class BuildScreen(ModalScreen[str | None]):
                         yield inp
 
                 for inp in self._inputs:
-                    pname = self._id_to_name[inp.id]
+                    pname = self._id_to_name[inp.id or ""]
                     yield SmartComplete(
                         target=inp,
                         candidates=self._callback_for_param(pname),
                         dropdown_class=f"sc-{pname}",
-                        id=widget_id("sc-", inp.id),
+                        id=widget_id("sc-", inp.id or ""),
                         on_completed=lambda v, p=pname: self._sc_completed(p, v),
                     )
             else:
-                yield Static("No parameters to configure - press Enter to continue", id="no-params-message")
+                yield Static(
+                    "No parameters to configure - press Enter to continue",
+                    id="no-params-message",
+                )
 
             yield Footer()
 
@@ -231,7 +249,7 @@ class BuildScreen(ModalScreen[str | None]):
             grid.styles.grid_size_rows = self._row_count()
 
             # Set up caches for refs and history
-            for name in self._params.keys():
+            for name in self._params:
                 self._refs_cache[name] = get_param_refs(self._md_path, name)
                 self._hist_cache[name] = get_history(name)
 
@@ -268,13 +286,13 @@ class BuildScreen(ModalScreen[str | None]):
         """Build preview text with styled substitutions."""
         text = Text()
         pos = 0
-        theme = self.app.available_themes.get(self.app.theme)
-        
+        theme = self.app.current_theme
+
         for m in PLACEHOLDER_RE.finditer(self._cmd):
             # literal text before placeholder
             if m.start() > pos:
-                text.append(self._cmd[pos:m.start()])
-            
+                text.append(self._cmd[pos : m.start()])
+
             # placeholder value
             name = m.group(1).split("|", 1)[0]
             val = self._values.get(name, "")
@@ -282,18 +300,18 @@ class BuildScreen(ModalScreen[str | None]):
                 text.append(val, style=theme.primary)
             # else append nothing for empty
             pos = m.end()
-        
+
         # tail literal
         if self._cmd and pos < len(self._cmd):
             text.append(self._cmd[pos:])
-        
+
         return text
 
     def _refresh_preview(self) -> None:
         if not self._preview:
             return
-        
-        theme = self.app.available_themes.get(self.app.theme)
+
+        theme = self.app.current_theme
         cmd_preview = self._build_preview()
         text = Text()
 
@@ -322,7 +340,7 @@ class BuildScreen(ModalScreen[str | None]):
     def _reflect_value(self, name: str) -> None:
         val = self._values.get(name, "")
         for inp in self._inputs:
-            if self._id_to_name.get(inp.id) == name:
+            if inp.id and self._id_to_name.get(inp.id) == name:
                 if inp.value != val:
                     inp.value = val
                 break
@@ -341,6 +359,7 @@ class BuildScreen(ModalScreen[str | None]):
             q = (state.text or "").lower()
             items = [x for x in pool if q in x.lower()][:30] if q else pool[:30]
             return [DropdownItem(x) for x in items]
+
         return cb
 
     def _sync_toggle(self, widget_id: str) -> None:
@@ -399,7 +418,7 @@ class BuildScreen(ModalScreen[str | None]):
 
     def action_param_screen(self) -> None:
         w = self.focused
-        if not isinstance(w, Input) or not getattr(w, "id", None):
+        if not isinstance(w, Input) or not w.id:
             return
         param = self._id_to_name.get(w.id)
         if not param:
@@ -430,7 +449,7 @@ class BuildScreen(ModalScreen[str | None]):
             self._refresh_preview()
 
             try:
-                sc = self.query_one(f"#{widget_id('sc-', w.id)}", SmartComplete)
+                sc = self.query_one(f"#{widget_id('sc-', w.id or '')}", SmartComplete)
                 sc.action_hide()
             except Exception:
                 pass
@@ -438,6 +457,7 @@ class BuildScreen(ModalScreen[str | None]):
             self.call_after_refresh(lambda: (w.focus(), w.action_select_all()))
 
         from aliasr.tui.build_screen.param_screen import ParamScreen
+
         self.app.push_screen(ParamScreen(param, refs, hist), _done)
 
     def action_submit(self) -> None:
@@ -449,7 +469,8 @@ class BuildScreen(ModalScreen[str | None]):
 
         # Save credentials if we have any true cred values
         if cred_values:
-            from aliasr.core.creds import Credential, save_creds, load_creds
+            from aliasr.core.creds import Credential, load_creds, save_creds
+
             new_cred = Credential(
                 username=self._values.get("user", ""),
                 password=self._values.get("password", ""),
@@ -466,15 +487,16 @@ class BuildScreen(ModalScreen[str | None]):
             # cred's domain/hash -- by recovering the full stored row that the
             # build values belong to (save_creds merges them in).
             from aliasr.core.exegol import set_current_credential
+
             full = _full_credential(new_cred, load_creds())
             set_current_credential(full)
 
         # Save non-cred parameters to globals (including domain)
         if self._params:
-            for name in self._params.keys():
+            for name in self._params:
                 if name in CRED_PARAMS:
                     continue
-                
+
                 val = (self._values.get(name, "") or "").strip()
                 if val:
                     save_global(name, val)
@@ -517,8 +539,12 @@ class BuildScreen(ModalScreen[str | None]):
                     ip = m.ip if m else ip
                 return ip, fqdn
 
-            t_ip, t_fqdn = _couple(vals["ip"], vals["fqdn"]) if target_touched else ("", "")
-            d_ip, d_fqdn = _couple(vals["dc_ip"], vals["dc_fqdn"]) if dc_touched else ("", "")
+            t_ip, t_fqdn = (
+                _couple(vals["ip"], vals["fqdn"]) if target_touched else ("", "")
+            )
+            d_ip, d_fqdn = (
+                _couple(vals["dc_ip"], vals["dc_fqdn"]) if dc_touched else ("", "")
+            )
 
             rows = []
             if target_touched:
@@ -566,9 +592,10 @@ class BuildScreen(ModalScreen[str | None]):
             else:
                 export = f"export KRB5CCNAME={self._krb_global}"
             final_cmd = f"{export}; {final_cmd}"
-            
+
             if self.app.in_tmux:
                 from aliasr.core.tmux import set_env
+
                 set_env("KRB5CCNAME", self._krb_global)
 
         self.dismiss(final_cmd)
@@ -601,7 +628,7 @@ class BuildScreen(ModalScreen[str | None]):
 
     @on(Input.Changed)
     def _changed(self, event: Input.Changed) -> None:
-        name = self._id_to_name.get(event.control.id)
+        name = self._id_to_name.get(event.control.id or "")
         if not name:
             return
         self._values[name] = event.value
@@ -614,9 +641,9 @@ class BuildScreen(ModalScreen[str | None]):
 
     @on(Click, ".toggle-widget")
     def _toggle_clicked(self, event: Click) -> None:
-        if event.control.id == "krb-toggle":
+        if event.control and event.control.id == "krb-toggle":
             self._exp_krb = not self._exp_krb
             self._sync_toggle("krb")
-        elif event.control.id == "prefix-toggle":
+        elif event.control and event.control.id == "prefix-toggle":
             self._exp_prefix = not self._exp_prefix
             self._sync_toggle("prefix")

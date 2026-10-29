@@ -9,24 +9,31 @@ from textual.widgets import Input, OptionList, Static
 from aliasr.core.config import kb_root, kb_table_copy
 from aliasr.core.creds import Credential, load_creds, save_creds
 from aliasr.core.hosts import Host, load_hosts, reconcile_hosts
+from aliasr.tui.utils.footer import Footer
 from aliasr.tui.utils.tables import (
+    TABLE_BINDINGS,
     cred_header,
     cred_option,
     host_header,
     host_option,
-    TABLE_BINDINGS,
 )
-from aliasr.tui.utils.footer import Footer
-
 
 # Per-tab copy columns: (attribute, human label). Both tabs expose four;
 # check_action hides the inactive tab's copy keys from the footer. For hosts,
 # "hostname"/"domain" are the short name and domain split out of the stored FQDN.
 _COPY_COLS = {
-    "creds": {1: ("username", "Username"), 2: ("password", "Password"),
-              3: ("hash", "NT Hash"), 4: ("domain", "Domain")},
-    "hosts": {1: ("ip", "IP"), 2: ("short_hostname", "Hostname"),
-              3: ("domain", "Domain"), 4: ("role", "Role")},
+    "creds": {
+        1: ("username", "Username"),
+        2: ("password", "Password"),
+        3: ("hash", "NT Hash"),
+        4: ("domain", "Domain"),
+    },
+    "hosts": {
+        1: ("ip", "IP"),
+        2: ("short_hostname", "Hostname"),
+        3: ("domain", "Domain"),
+        4: ("role", "Role"),
+    },
 }
 
 
@@ -36,41 +43,70 @@ class CredsScreen(ModalScreen[None]):
     BINDINGS = [
         Binding("escape", "cancel"),
         Binding(kb_root("creds_screen"), "cancel"),
-
         Binding(kb_root("prev_tab"), "prev_tab", "Prev Tab", tooltip="Switch tab."),
         Binding(kb_root("next_tab"), "next_tab", "Next Tab", tooltip="Switch tab."),
-
         Binding("up", "list_up"),
         Binding("down", "list_down"),
         Binding("pageup", "list_page_up"),
         Binding("pagedown", "list_page_down"),
-
         *TABLE_BINDINGS,
         # Credentials copy columns (active on the creds tab).
-        Binding(kb_table_copy("col_1"), "copy_user", "Copy User",
-                tooltip="Copy the selected username."),
-        Binding(kb_table_copy("col_2"), "copy_password", "Copy Password",
-                tooltip="Copy the selected password."),
-        Binding(kb_table_copy("col_3"), "copy_hash", "Copy Hash",
-                tooltip="Copy the selected hash."),
-        Binding(kb_table_copy("col_4"), "copy_domain", "Copy Domain",
-                tooltip="Copy the selected domain."),
+        Binding(
+            kb_table_copy("col_1"),
+            "copy_user",
+            "Copy User",
+            tooltip="Copy the selected username.",
+        ),
+        Binding(
+            kb_table_copy("col_2"),
+            "copy_password",
+            "Copy Password",
+            tooltip="Copy the selected password.",
+        ),
+        Binding(
+            kb_table_copy("col_3"),
+            "copy_hash",
+            "Copy Hash",
+            tooltip="Copy the selected hash.",
+        ),
+        Binding(
+            kb_table_copy("col_4"),
+            "copy_domain",
+            "Copy Domain",
+            tooltip="Copy the selected domain.",
+        ),
         # Host copy columns (active on the hosts tab).
-        Binding(kb_table_copy("col_1"), "copy_ip", "Copy IP",
-                tooltip="Copy the selected IP."),
-        Binding(kb_table_copy("col_2"), "copy_hostname", "Copy Hostname",
-                tooltip="Copy the selected short hostname."),
-        Binding(kb_table_copy("col_3"), "copy_host_domain", "Copy Domain",
-                tooltip="Copy the selected host's domain."),
-        Binding(kb_table_copy("col_4"), "copy_role", "Copy Role",
-                tooltip="Copy the selected role."),
+        Binding(
+            kb_table_copy("col_1"),
+            "copy_ip",
+            "Copy IP",
+            tooltip="Copy the selected IP.",
+        ),
+        Binding(
+            kb_table_copy("col_2"),
+            "copy_hostname",
+            "Copy Hostname",
+            tooltip="Copy the selected short hostname.",
+        ),
+        Binding(
+            kb_table_copy("col_3"),
+            "copy_host_domain",
+            "Copy Domain",
+            tooltip="Copy the selected host's domain.",
+        ),
+        Binding(
+            kb_table_copy("col_4"),
+            "copy_role",
+            "Copy Role",
+            tooltip="Copy the selected role.",
+        ),
     ]
 
     def __init__(self) -> None:
         super().__init__()
         self._tab: str = "creds"
         self._rows: dict[str, list] = {"creds": [], "hosts": []}
-        self._olists: dict[str, OptionList | None] = {"creds": None, "hosts": None}
+        self._olists: dict[str, OptionList] = {}
         self._dirty: dict[str, bool] = {"creds": False, "hosts": False}
 
     # ---------- UI ----------
@@ -78,10 +114,16 @@ class CredsScreen(ModalScreen[None]):
     def compose(self) -> ComposeResult:
         with Vertical(id="panel", classes="menu-panel"):
             yield Static(self._tabbar_markup(), id="tabbar")
-            yield Input(placeholder="Search... (user/domain, or ip/hostname)", id="filter")
-            yield Static(cred_header(), id="creds-head", classes="optionlist-table-header")
+            yield Input(
+                placeholder="Search... (user/domain, or ip/hostname)", id="filter"
+            )
+            yield Static(
+                cred_header(), id="creds-head", classes="optionlist-table-header"
+            )
             yield OptionList(id="creds-list", classes="optionlist-table")
-            yield Static(host_header(), id="hosts-head", classes="optionlist-table-header")
+            yield Static(
+                host_header(), id="hosts-head", classes="optionlist-table-header"
+            )
             yield OptionList(id="hosts-list", classes="optionlist-table")
             yield Footer()
 
@@ -109,7 +151,9 @@ class CredsScreen(ModalScreen[None]):
         # backing exegol-history's *current* credential/host was deleted here.
         self._initial_cred_ids = {(c.username, c.domain) for c in self._rows["creds"]}
         self._initial_host_ips = {h.ip for h in self._rows["hosts"] if h.ip}
-        self._initial_host_fqdns = {h.hostname for h in self._rows["hosts"] if h.hostname}
+        self._initial_host_fqdns = {
+            h.hostname for h in self._rows["hosts"] if h.hostname
+        }
 
         self._populate("creds")
         self._populate("hosts")
@@ -242,7 +286,7 @@ class CredsScreen(ModalScreen[None]):
 
     # ---------- Helpers ----------
 
-    def _olist(self) -> OptionList | None:
+    def _olist(self) -> OptionList:
         return self._olists[self._tab]
 
     def _render_option(self, tab: str, row, idx: int):
@@ -317,7 +361,9 @@ class CredsScreen(ModalScreen[None]):
         if tab == "creds":
             from aliasr.tui.creds_screen.cred_editor import CredEditor
 
-            self.app.push_screen(CredEditor(r.username, r.password, r.hash, r.domain), _done)
+            self.app.push_screen(
+                CredEditor(r.username, r.password, r.hash, r.domain), _done
+            )
         else:
             from aliasr.tui.creds_screen.host_editor import HostEditor
 
@@ -334,7 +380,7 @@ class CredsScreen(ModalScreen[None]):
             val = getattr(rows[r], field, "") or ""
             if val:
                 copy_to_clipboard(val)
-                self.notify(f"Copied {label}!", severity="success", timeout=2.5)
+                self.notify(f"Copied {label}!", severity="success", timeout=2.5)  # pyright: ignore[reportArgumentType]
         except Exception:
             self.notify("Copy Failed :(", severity="error", timeout=2.5)
 

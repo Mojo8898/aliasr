@@ -10,7 +10,6 @@ from aliasr.core.config import (
     GLOBALS_MAX_LEN,
 )
 
-
 _SEP_RE = re.compile(r"[-.\s]+")
 _SAFE_RE = re.compile(r"[^a-z0-9_]")
 _MULTI_RE = re.compile(r"_+")
@@ -29,7 +28,9 @@ _globals_bootstrapped = False
 # ---------- Helpers ----------
 
 
-def _as_list(value: Any, *, max_len: int | None = None, preserve_ws: bool = False) -> list[str]:
+def _as_list(
+    value: Any, *, max_len: int | None = None, preserve_ws: bool = False
+) -> list[str]:
     """Convert any value to a normalized list of strings with deduplication."""
     if max_len is None:
         max_len = _MAX_LEN
@@ -168,9 +169,9 @@ def _ensure_loaded() -> None:
         raise SystemExit(
             f"Error: Malformed JSON in {GLOBALS_FILE}\n{e}\n"
             "Fix or delete the file to reset values to defaults."
-        )
+        ) from e
     except Exception as e:
-        raise SystemExit(f"Warning: error reading {GLOBALS_FILE}: {e}")
+        raise SystemExit(f"Warning: error reading {GLOBALS_FILE}: {e}") from e
 
 
 # ---------- Public API ----------
@@ -232,7 +233,9 @@ def save_globals(payload: dict[str, Any]) -> None:
         if not nk:
             continue
         seq = v if isinstance(v, list) else [v]
-        _STATE_RAW[nk] = _normalize_history_list(seq, preserve_ws=nk in _PRESERVE_WS_KEYS)
+        _STATE_RAW[nk] = _normalize_history_list(
+            seq, preserve_ws=nk in _PRESERVE_WS_KEYS
+        )
     _persist_from_cache()
 
 
@@ -249,10 +252,12 @@ def save_globals_order(key_order: list[str]) -> None:
     for k in list(_STATE_RAW.keys()):
         if k not in seen:
             order.append(k)
-    vals = {k: _STATE_RAW[k] for k in _STATE_RAW.keys()}
+    vals = {k: _STATE_RAW[k] for k in _STATE_RAW}
     _STATE_RAW.clear()
     for k in order:
-        _STATE_RAW[k] = _normalize_history_list(vals[k], preserve_ws=k in _PRESERVE_WS_KEYS)
+        _STATE_RAW[k] = _normalize_history_list(
+            vals[k], preserve_ws=k in _PRESERVE_WS_KEYS
+        )
     _persist_from_cache()
 
 

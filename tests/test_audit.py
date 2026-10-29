@@ -11,17 +11,20 @@ import pytest
 from aliasr.audit import run_audit_cli
 
 
-@pytest.mark.parametrize("kwargs", [
-    {},                                  # bare summary
-    {"cheats": True},
-    {"cheats": True, "list_all": True},
-    {"references": True},
-    {"variations": True},
-    {"config": True},
-    {"run_all": True},
-    {"references": True, "variations": True},  # composable
-    {"list_all": True},                  # implies cheats
-])
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {},  # bare summary
+        {"cheats": True},
+        {"cheats": True, "list_all": True},
+        {"references": True},
+        {"variations": True},
+        {"config": True},
+        {"run_all": True},
+        {"references": True, "variations": True},  # composable
+        {"list_all": True},  # implies cheats
+    ],
+)
 def test_audit_sections_exit_clean(kwargs, capsys):
     """Every audit section (and the summary) returns 0 against the test config."""
     assert run_audit_cli(**kwargs) == 0

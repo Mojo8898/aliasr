@@ -42,11 +42,19 @@ class TestSkewTarget:
         assert build.skew_target(frozenset(), {"ip": "1.2.3.4"}) is None
 
     def test_prefers_ip(self):
-        assert build.skew_target(frozenset({"faketime"}), {"ip": "1.2.3.4"}) == "1.2.3.4"
+        assert (
+            build.skew_target(frozenset({"faketime"}), {"ip": "1.2.3.4"}) == "1.2.3.4"
+        )
 
     def test_falls_back_to_dc_ip_then_fallback(self):
-        assert build.skew_target(frozenset({"faketime"}), {"dc_ip": "5.6.7.8"}) == "5.6.7.8"
-        assert build.skew_target(frozenset({"faketime"}), {}, fallback="9.9.9.9") == "9.9.9.9"
+        assert (
+            build.skew_target(frozenset({"faketime"}), {"dc_ip": "5.6.7.8"})
+            == "5.6.7.8"
+        )
+        assert (
+            build.skew_target(frozenset({"faketime"}), {}, fallback="9.9.9.9")
+            == "9.9.9.9"
+        )
 
 
 class TestRender:
@@ -75,16 +83,12 @@ class TestRender:
         assert "arun getTGT.py d.htb" in out
 
     def test_target_local_emits_bare(self):
-        out = build.render(
-            "whoami\nhostname", {}, cheat_tags=("target/local",)
-        )
+        out = build.render("whoami\nhostname", {}, cheat_tags=("target/local",))
         assert "arun" not in out
         assert out == "whoami ; \\\nhostname"
 
     def test_ps_encode_skips_arun_chain(self):
-        out = build.render(
-            "whoami\nhostname", {}, build_tags=frozenset({"ps_encode"})
-        )
+        out = build.render("whoami\nhostname", {}, build_tags=frozenset({"ps_encode"}))
         assert out.startswith("powershell -e ")
         assert "arun" not in out
 

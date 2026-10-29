@@ -79,12 +79,11 @@ class _ExhDB:
 
     def read(self) -> list[Credential]:
         """Return every credential, oldest first (NULLs surfaced as empty strings)."""
-        with self._lock:
-            with self._connect() as conn:
-                rows = conn.execute(
-                    "SELECT credential_id, username, password, hash, domain "
-                    "FROM credentials ORDER BY credential_id"
-                ).fetchall()
+        with self._lock, self._connect() as conn:
+            rows = conn.execute(
+                "SELECT credential_id, username, password, hash, domain "
+                "FROM credentials ORDER BY credential_id"
+            ).fetchall()
         return [
             Credential(
                 username=r[1] or "",
@@ -107,20 +106,19 @@ class _ExhDB:
         """
         rows = list(creds)
         keep_ids = [c.credential_id for c in rows if c.credential_id is not None]
-        with self._lock:
-            with self._connect() as conn:
-                if keep_ids:
-                    placeholders = ",".join("?" * len(keep_ids))
-                    conn.execute(
-                        "DELETE FROM credentials "
-                        f"WHERE credential_id NOT IN ({placeholders})",
-                        keep_ids,
-                    )
-                else:
-                    conn.execute("DELETE FROM credentials")
-                for c in rows:
-                    self._upsert(conn, c)
-                conn.commit()
+        with self._lock, self._connect() as conn:
+            if keep_ids:
+                placeholders = ",".join("?" * len(keep_ids))
+                conn.execute(
+                    "DELETE FROM credentials "
+                    f"WHERE credential_id NOT IN ({placeholders})",
+                    keep_ids,
+                )
+            else:
+                conn.execute("DELETE FROM credentials")
+            for c in rows:
+                self._upsert(conn, c)
+            conn.commit()
 
     def _upsert(self, conn: sqlite3.Connection, c: Credential) -> None:
         """Update the row with c's id, else insert (merging on username/domain)."""
@@ -164,18 +162,16 @@ class _ExhDB:
 
     def clear(self) -> None:
         """Delete all credentials (leaves the hosts table intact)."""
-        with self._lock:
-            with self._connect() as conn:
-                conn.execute("DELETE FROM credentials")
-                conn.commit()
+        with self._lock, self._connect() as conn:
+            conn.execute("DELETE FROM credentials")
+            conn.commit()
 
     def read_hosts(self) -> list:
         """Return every host, oldest first (NULLs surfaced as empty strings)."""
-        with self._lock:
-            with self._connect() as conn:
-                rows = conn.execute(
-                    "SELECT host_id, ip, hostname, role FROM hosts ORDER BY host_id"
-                ).fetchall()
+        with self._lock, self._connect() as conn:
+            rows = conn.execute(
+                "SELECT host_id, ip, hostname, role FROM hosts ORDER BY host_id"
+            ).fetchall()
         from aliasr.core.hosts import Host
 
         return [
@@ -193,14 +189,13 @@ class _ExhDB:
         ]
         if not payload:
             return
-        with self._lock:
-            with self._connect() as conn:
-                conn.executemany(
-                    "INSERT INTO hosts (ip, hostname, role) VALUES (?, ?, ?) "
-                    "ON CONFLICT(ip, hostname) DO UPDATE SET role=excluded.role",
-                    payload,
-                )
-                conn.commit()
+        with self._lock, self._connect() as conn:
+            conn.executemany(
+                "INSERT INTO hosts (ip, hostname, role) VALUES (?, ?, ?) "
+                "ON CONFLICT(ip, hostname) DO UPDATE SET role=excluded.role",
+                payload,
+            )
+            conn.commit()
 
     def reconcile_hosts(self, hosts) -> None:
         """Reconcile the hosts table to exactly `hosts` (id-tracked delete).
@@ -213,38 +208,36 @@ class _ExhDB:
         """
         rows = [h for h in hosts if (h.ip or h.hostname)]
         keep_ids = [h.host_id for h in rows if h.host_id is not None]
-        with self._lock:
-            with self._connect() as conn:
-                if keep_ids:
-                    placeholders = ",".join("?" * len(keep_ids))
-                    conn.execute(
-                        f"DELETE FROM hosts WHERE host_id NOT IN ({placeholders})",
-                        keep_ids,
+        with self._lock, self._connect() as conn:
+            if keep_ids:
+                placeholders = ",".join("?" * len(keep_ids))
+                conn.execute(
+                    f"DELETE FROM hosts WHERE host_id NOT IN ({placeholders})",
+                    keep_ids,
+                )
+            else:
+                conn.execute("DELETE FROM hosts")
+            for h in rows:
+                payload = (h.ip or None, h.hostname or None, h.role or None)
+                if h.host_id is not None:
+                    cur = conn.execute(
+                        "UPDATE hosts SET ip=?, hostname=?, role=? WHERE host_id=?",
+                        (*payload, h.host_id),
                     )
-                else:
-                    conn.execute("DELETE FROM hosts")
-                for h in rows:
-                    payload = (h.ip or None, h.hostname or None, h.role or None)
-                    if h.host_id is not None:
-                        cur = conn.execute(
-                            "UPDATE hosts SET ip=?, hostname=?, role=? WHERE host_id=?",
-                            (*payload, h.host_id),
-                        )
-                        if cur.rowcount:
-                            continue
-                    conn.execute(
-                        "INSERT INTO hosts (ip, hostname, role) VALUES (?, ?, ?) "
-                        "ON CONFLICT(ip, hostname) DO UPDATE SET role=excluded.role",
-                        payload,
-                    )
-                conn.commit()
+                    if cur.rowcount:
+                        continue
+                conn.execute(
+                    "INSERT INTO hosts (ip, hostname, role) VALUES (?, ?, ?) "
+                    "ON CONFLICT(ip, hostname) DO UPDATE SET role=excluded.role",
+                    payload,
+                )
+            conn.commit()
 
     def clear_hosts(self) -> None:
         """Delete all hosts (leaves the credentials table intact)."""
-        with self._lock:
-            with self._connect() as conn:
-                conn.execute("DELETE FROM hosts")
-                conn.commit()
+        with self._lock, self._connect() as conn:
+            conn.execute("DELETE FROM hosts")
+            conn.commit()
 
 
 # ---------- Helpers ----------
@@ -267,8 +260,9 @@ def _materialize_hash(c: Credential) -> Credential:
     )
 
 
-
-def _deduplicate_creds(creds: Iterable[Credential], materialize: bool = False) -> list[Credential]:
+def _deduplicate_creds(
+    creds: Iterable[Credential], materialize: bool = False
+) -> list[Credential]:
     """Deduplicate credentials by merging those with matching non-empty fields."""
     result = []
 
@@ -281,11 +275,16 @@ def _deduplicate_creds(creds: Iterable[Credential], materialize: bool = False) -
         merged = False
         for i, existing in enumerate(result):
             # Check if c can be merged with existing (no conflicts)
-            if (not (existing.username and c.username and existing.username != c.username) and
-                not (existing.password and c.password and existing.password != c.password) and
-                not (existing.hash and c.hash and existing.hash != c.hash) and
-                not (existing.domain and c.domain and existing.domain != c.domain)):
-
+            if (
+                not (
+                    existing.username and c.username and existing.username != c.username
+                )
+                and not (
+                    existing.password and c.password and existing.password != c.password
+                )
+                and not (existing.hash and c.hash and existing.hash != c.hash)
+                and not (existing.domain and c.domain and existing.domain != c.domain)
+            ):
                 # Merge c into existing (keep whichever id is already persisted)
                 result[i] = Credential(
                     username=existing.username or c.username,
@@ -329,7 +328,7 @@ def _md4(data: bytes) -> bytes:
     msg += struct.pack("<Q", bit_len)
 
     for off in range(0, len(msg), 64):
-        X = list(struct.unpack("<16I", msg[off:off + 64]))
+        X = list(struct.unpack("<16I", msg[off : off + 64]))
         aa, bb, cc, dd = a, b, c, d
         for i in (0, 4, 8, 12):  # round 1
             a = rol(a + ((b & c) | (~b & d)) + X[i], 3)
@@ -361,6 +360,7 @@ def nt_hash(password: str) -> str:
 
     data = password.encode("utf-16le")
     import hashlib
+
     try:
         return hashlib.new("md4", data).hexdigest().upper()
     except ValueError:

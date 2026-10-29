@@ -22,7 +22,9 @@ def test_deskewed_env_none_when_no_skew(monkeypatch):
 def test_deskewed_env_strips_faketime(monkeypatch):
     """libfaketime is removed from LD_PRELOAD and FAKETIME* vars are unset,
     while unrelated preloads and environment are preserved."""
-    monkeypatch.setenv("LD_PRELOAD", "/usr/$LIB/faketime/libfaketime.so.1:/other/lib.so")
+    monkeypatch.setenv(
+        "LD_PRELOAD", "/usr/$LIB/faketime/libfaketime.so.1:/other/lib.so"
+    )
     monkeypatch.setenv("FAKETIME", "+1h")
     monkeypatch.setenv("FAKETIME_SHARED", "/faketime_sem_1 /faketime_shm_1")
     monkeypatch.setenv("UNRELATED", "keep-me")

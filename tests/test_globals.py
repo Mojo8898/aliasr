@@ -38,6 +38,8 @@ def test_reorder_preserves_prefix_whitespace():
 
 
 def test_canonicalize_preserves_prefix_whitespace():
-    canon = g._canonicalize({"aliasr_prefix": ["proxychains -q "], "ip": ["  1.2.3.4  "]})
+    canon = g._canonicalize(
+        {"aliasr_prefix": ["proxychains -q "], "ip": ["  1.2.3.4  "]}
+    )
     assert canon["aliasr_prefix"] == ["proxychains -q "]
     assert canon["ip"] == ["1.2.3.4"]

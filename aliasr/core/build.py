@@ -53,13 +53,17 @@ def fill_placeholders(cmd: str, values: dict[str, str], *, strict: bool = False)
 def apply_encode_tags(cmd: str, tags) -> str:
     """Wrap *cmd* per an encode build tag, or return it unchanged."""
     if "ps_encode" in tags:
-        return f"powershell -e {base64.b64encode(cmd.encode('utf-16le')).decode('ascii')}"
+        return (
+            f"powershell -e {base64.b64encode(cmd.encode('utf-16le')).decode('ascii')}"
+        )
     if "sh_encode" in tags:
         return f"echo {base64.b64encode(cmd.encode('utf-8')).decode('ascii')} | base64 -d | /bin/sh"
     return cmd
 
 
-def skew_target(build_tags, values: dict[str, str], *, fallback: str = "") -> str | None:
+def skew_target(
+    build_tags, values: dict[str, str], *, fallback: str = ""
+) -> str | None:
     """The DC-clock-skew target for a ``#faketime`` cheat, else ``None``.
 
     Prefers an ``ip``/``dc_ip`` the caller resolved, then *fallback* (e.g. a

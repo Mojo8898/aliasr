@@ -1,11 +1,17 @@
+from typing import TYPE_CHECKING
+
 from textual import on
 from textual.containers import Horizontal
 from textual.widgets import Input, Static
 
-from aliasr.core.config import GLOBALS_HISTORY, CREDS_MASK
+from aliasr.core.config import CREDS_MASK, GLOBALS_HISTORY
+
+if TYPE_CHECKING:
+    from aliasr.app import Aliasr
 
 
 class Indicators(Horizontal):
+    app: "Aliasr"
     """Status/controls shown next to the main search input."""
 
     # ---------- UI ----------
@@ -23,7 +29,7 @@ class Indicators(Horizontal):
     # ---------- Helpers ----------
 
     def _badge(self, ok: bool) -> str:
-        theme = self.app.available_themes.get(self.app.theme)
+        theme = self.app.current_theme
         return f"[{theme.success}]✓[/]" if ok else f"[{theme.error}]✗[/]"
 
     # ---------- Events ----------

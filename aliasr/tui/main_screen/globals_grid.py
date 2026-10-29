@@ -1,25 +1,28 @@
+from contextlib import contextmanager, suppress
 from math import ceil
-from contextlib import contextmanager
+from typing import TYPE_CHECKING
 
 from textual import on
 from textual.binding import Binding
 from textual.containers import Grid, Horizontal
 from textual.widgets import Input
 
-from aliasr.core.config import GLOBALS_ROWS, GLOBALS_COLUMNS, kb_root
-from aliasr.tui.utils.grid_nav import GRID_NAV_BINDINGS, grid_nav
+from aliasr.core.config import GLOBALS_COLUMNS, GLOBALS_ROWS, kb_root
 from aliasr.tui.utils.common import widget_id
+from aliasr.tui.utils.grid_nav import GRID_NAV_BINDINGS, grid_nav
 
+if TYPE_CHECKING:
+    from aliasr.app import Aliasr
 
 CAP = GLOBALS_ROWS * GLOBALS_COLUMNS
 
 
 class GlobalsGrid(Horizontal):
+    app: "Aliasr"
     """Responsive grid of editable globals with diff highlighting."""
 
     BINDINGS = [
         *GRID_NAV_BINDINGS,
-        
         Binding(
             kb_root("globals_editor"),
             "open_editor",
@@ -27,12 +30,8 @@ class GlobalsGrid(Horizontal):
             priority=True,
             tooltip="Open the globals editor menu for the currently focused global.",
         ),
-        
         Binding(
-            kb_root("cycle_grid_focus"),
-            "focus_search",
-            "Focus Search",
-            priority=True
+            kb_root("cycle_grid_focus"), "focus_search", "Focus Search", priority=True
         ),
     ]
 
@@ -96,10 +95,8 @@ class GlobalsGrid(Horizontal):
 
     def _paint_all(self) -> None:
         for key in self._keys:
-            try:
+            with suppress(Exception):
                 self._paint(key)
-            except Exception:
-                pass
 
     def _focused_key(self) -> str | None:
         w = self.app.focused
@@ -115,10 +112,8 @@ class GlobalsGrid(Horizontal):
 
         save_global(key, value)
         self._saved[key] = value
-        try:
+        with suppress(Exception):
             self._paint(key)
-        except Exception:
-            pass
 
     # ---------- Actions ----------
 
@@ -207,7 +202,7 @@ class GlobalsGrid(Horizontal):
         new_keys = list(data.keys())[:CAP]
 
         desired_ids = {widget_id("g-", k) for k in new_keys}
-        existing = {w.id: w for w in grid.query("Input")}
+        existing = {w.id: w for w in grid.query(Input)}
 
         # Remove stale inputs
         for wid, w in list(existing.items()):

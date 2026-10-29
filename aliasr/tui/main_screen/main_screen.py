@@ -1,30 +1,40 @@
 from pathlib import Path
+from typing import TYPE_CHECKING
+
 from textual import on
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
-from textual.events import Click, MouseScrollUp, MouseScrollDown, Resize
+from textual.events import Click, MouseScrollDown, MouseScrollUp, Resize
 from textual.fuzzy import FuzzySearch
 from textual.screen import Screen
 from textual.widgets import Input, Select, Tabs
+from textual.widgets.input import Selection
 
-from aliasr.core.config import GLOBALS_SHOW_GRID, kb_root
 from aliasr.core.cheats import build_tag_index
+from aliasr.core.config import GLOBALS_SHOW_GRID, kb_root
 from aliasr.tui.main_screen.cheatlist import CheatCommandList, CheatTitleList
 from aliasr.tui.main_screen.globals_grid import GlobalsGrid
 from aliasr.tui.main_screen.header import CheatHeader
-from aliasr.tui.main_screen.search_bar.search_bar import MainSearch
+from aliasr.tui.main_screen.search_bar.search_bar import CheatTags, MainSearch
 from aliasr.tui.utils.common import widget_id
-from aliasr.tui.utils.smart_complete import SmartComplete
 from aliasr.tui.utils.footer import Footer
+from aliasr.tui.utils.smart_complete import SmartComplete
+
+if TYPE_CHECKING:
+    from aliasr.app import Aliasr
+
 
 class MainScreen(Screen[None]):
+    app: "Aliasr"
     BINDINGS = [
-        Binding("up", "select_previous",),
+        Binding(
+            "up",
+            "select_previous",
+        ),
         Binding("down", "select_next"),
         Binding("pageup", "page_up"),
         Binding("pagedown", "page_down"),
-
         Binding(
             kb_root("globals_screen"),
             "globals_screen",
@@ -37,7 +47,6 @@ class MainScreen(Screen[None]):
             "Creds/Hosts",
             tooltip="Open the credentials & hosts menu.",
         ),
-
         Binding(
             kb_root("cycle_grid_focus"),
             "cycle_grid_focus",
@@ -56,18 +65,17 @@ class MainScreen(Screen[None]):
             "Focus Selects",
             tooltip="Switch focus between search and select dropdowns.",
         ),
-
         Binding(
             kb_root("toggle_grid"),
             "toggle_grid",
             "Toggle Grid",
-            tooltip="Toggle the visibility of the globals grid."
+            tooltip="Toggle the visibility of the globals grid.",
         ),
     ]
 
     def __init__(self) -> None:
         super().__init__()
-        self._fz: FuzzySearch | None = FuzzySearch(cache_size=1024)
+        self._fz = FuzzySearch(cache_size=1024)
         self._keys: dict[int, str] = {}
         self._search: Input | None = None
         self.tag_to_cheats: dict[str, list] = {}
@@ -111,7 +119,9 @@ class MainScreen(Screen[None]):
         # Pass ALL tags to the tabs widget (don't filter here!)
         self.current_tag = "all"
         sb = self.query_one("#search-bar", MainSearch)
-        sb.query_one("#tabs").set_tags(tags, self.current_tag)  # Pass ALL tags
+        sb.query_one("#tabs", CheatTags).set_tags(
+            tags, self.current_tag
+        )  # Pass ALL tags
         sb.build_dynamic_tag_types()
 
         # Apply initial filters to show appropriate tabs
@@ -121,10 +131,9 @@ class MainScreen(Screen[None]):
 
         # Add initial size check after layout is complete
         def _check_initial_size():
-            if self.title_list.size.height <= 1:
-                if self.globals_panel.display:
-                    self._focus_search_if_focused_globals()
-                    self._set_grid_visible(False)
+            if self.title_list.size.height <= 1 and self.globals_panel.display:
+                self._focus_search_if_focused_globals()
+                self._set_grid_visible(False)
 
         self.call_after_refresh(_check_initial_size)
 
@@ -201,8 +210,7 @@ class MainScreen(Screen[None]):
         try:
             w.action_select_all()
         except Exception:
-            w.selection_start = 0
-            w.selection_end = len(w.value or "")
+            w.selection = Selection(0, len(w.value or ""))
 
     def _sync_lists(self) -> None:
         self.title_list.set_list(self.matches, self.selected_idx)
@@ -247,7 +255,7 @@ class MainScreen(Screen[None]):
 
     def _first_globals_input(self) -> Input | None:
         grid = self.query_one(GlobalsGrid)
-        return next(iter(grid.query("#globals-grid Input")), None)
+        return next(grid.query("#globals-grid Input").results(Input), None)
 
     def _update_header(self) -> None:
         if self.matches:
@@ -301,6 +309,7 @@ class MainScreen(Screen[None]):
         if w.id == "tag-filter":
             try:
                 from aliasr.tui.utils.smart_complete import SmartComplete
+
                 return self.query_one("#sc-tag", SmartComplete)
             except Exception:
                 return None
@@ -342,13 +351,10 @@ class MainScreen(Screen[None]):
         """Cycle between search input and tag filter input only."""
         search = self.query_one("#search", Input)
         tag_filter = self.query_one("#tag-filter", Input)
-        
+
         # Simply toggle between the two inputs
-        if self.focused is tag_filter:
-            target = search
-        else:
-            target = tag_filter
-            
+        target = search if self.focused is tag_filter else tag_filter
+
         target.focus()
         self._select_all(target)
 
@@ -356,9 +362,9 @@ class MainScreen(Screen[None]):
         """Cycle through select widgets and search input."""
         search = self.query_one("#search", Input)
         tag_type_select = self.query_one("#tag-type-select", Select)
-        target_select = self.query_one("#target-select", Select) 
+        target_select = self.query_one("#target-select", Select)
         os_select = self.query_one("#os-select", Select)
-        
+
         # Determine which widget is currently focused and cycle to the next
         if self.focused is tag_type_select:
             target = target_select
@@ -369,7 +375,7 @@ class MainScreen(Screen[None]):
         else:
             # Default to search if focus is elsewhere
             target = tag_type_select
-            
+
         target.focus()
         if isinstance(target, Input):
             self._select_all(target)
@@ -392,8 +398,9 @@ class MainScreen(Screen[None]):
         cheat = self.matches[self.selected_idx]
 
         # Check if this command has variations
-        from aliasr.core.variations import get_all_variations
         import re
+
+        from aliasr.core.variations import get_all_variations
 
         tokens = re.findall(r"<([^>\s]+)>", cheat.cmd or "")
         param_names = []
@@ -415,12 +422,14 @@ class MainScreen(Screen[None]):
                 target = self.app.tmux_target_pane
                 if target and target.isdigit():
                     from aliasr.core.tmux import get_current_pane
+
                     if target == get_current_pane():
                         self.app.pending_inject = result
                         self.app.exit()
                         return
 
                     from aliasr.core.inject import inject
+
                     inject(
                         cmd=result,
                         using_tmux=True,
@@ -440,10 +449,12 @@ class MainScreen(Screen[None]):
 
                 # Expand the chosen variation keys per line (head-aware).
                 from aliasr.core.variations import apply_selection
+
                 modified_cmd = apply_selection(cheat.cmd, selected)
 
                 # Now open build screen with modified command
                 from aliasr.tui.build_screen.build_screen import BuildScreen
+
                 self.app.push_screen(
                     BuildScreen(
                         cheat.title,
@@ -456,10 +467,14 @@ class MainScreen(Screen[None]):
                 )
 
             from aliasr.tui.build_screen.variations_screen import VariationsScreen
-            self.app.push_screen(VariationsScreen(cheat.cmd, variations), _variations_done)
+
+            self.app.push_screen(
+                VariationsScreen(cheat.cmd, variations), _variations_done
+            )
         else:
             # No variations - go directly to build screen
             from aliasr.tui.build_screen.build_screen import BuildScreen
+
             self.app.push_screen(
                 BuildScreen(
                     cheat.title,
@@ -484,16 +499,19 @@ class MainScreen(Screen[None]):
             self._refocus_after_globals(prev_key)
 
         from aliasr.tui.globals_screen.globals_screen import GlobalsScreen
+
         self.app.push_screen(GlobalsScreen(), _done)
 
     def action_creds_screen(self) -> None:
         self.globals_panel.commit_all_modified()
 
         from aliasr.tui.creds_screen.creds_screen import CredsScreen
+
         self.app.push_screen(CredsScreen())
 
     def refresh_matches(self) -> None:
         from textual.widgets import Select
+
         from aliasr.tui.utils.common import select_value
 
         query = self.query_one("#search", Input).value or ""

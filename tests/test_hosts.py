@@ -48,7 +48,12 @@ def test_discovered_host_globals_from_stored_dc():
 
 
 def test_save_and_load_hosts_roundtrip():
-    save_hosts([Host("10.0.0.5", "web01.corp.local", ""), Host("10.0.0.1", "dc01.corp.local", "DC")])
+    save_hosts(
+        [
+            Host("10.0.0.5", "web01.corp.local", ""),
+            Host("10.0.0.1", "dc01.corp.local", "DC"),
+        ]
+    )
     out = load_hosts()
     names = {h.hostname for h in out}
     assert "web01.corp.local" in names and "dc01.corp.local" in names
@@ -75,6 +80,7 @@ def test_write_hosts_updates_role_on_conflict():
 
 def test_clearing_credentials_leaves_hosts(tmp_path):
     from aliasr.core.creds import Credential, clear_creds
+
     save_hosts([Host("10.2.2.2", "keepme", "")])
     clear_creds()
     assert any(h.hostname == "keepme" for h in load_hosts())
@@ -126,7 +132,9 @@ def test_clear_hosts_wipes_table_and_unsets_profile():
     from aliasr.core.hosts import Host, clear_hosts, save_hosts
 
     save_hosts([Host("10.0.0.9", "web01", ""), Host("10.0.0.1", "dc01", "DC")])
-    exegol.set_current_host(ip="10.0.0.9", fqdn="web01", dc_ip="10.0.0.1", dc_fqdn="dc01")
+    exegol.set_current_host(
+        ip="10.0.0.9", fqdn="web01", dc_ip="10.0.0.1", dc_fqdn="dc01"
+    )
     assert load_hosts() and exegol.current_host()
 
     clear_hosts()
@@ -135,9 +143,10 @@ def test_clear_hosts_wipes_table_and_unsets_profile():
 
 
 def test_clear_hosts_leaves_credentials():
+    import time
+
     from aliasr.core.creds import Credential, load_creds, save_creds
     from aliasr.core.hosts import Host, clear_hosts, save_hosts
-    import time
 
     save_creds([Credential("admin", "p", "", "corp.local")])
     time.sleep(0.3)

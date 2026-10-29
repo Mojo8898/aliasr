@@ -52,13 +52,17 @@ def _load_one(path: Path) -> dict[str, dict[str, dict[str, str]]]:
             # Store universal variations separately
             result["_"] = {
                 str(param): (choices if isinstance(choices, dict) else {})
-                for param, choices in (params if isinstance(params, dict) else {}).items()
+                for param, choices in (
+                    params if isinstance(params, dict) else {}
+                ).items()
             }
         else:
             # Regular command-specific variations
             result[str(cmd)] = {
                 str(param): (choices if isinstance(choices, dict) else {})
-                for param, choices in (params if isinstance(params, dict) else {}).items()
+                for param, choices in (
+                    params if isinstance(params, dict) else {}
+                ).items()
             }
     return result
 
@@ -85,7 +89,7 @@ def load_variations() -> None:
 
         # Remove _ from regular vars if it ended up there
         tmp.pop("_", None)
-        
+
         _VARS = tmp
         _LOADED = True
 
@@ -150,7 +154,9 @@ def get_all_variations(cmd: str, params: list[str]) -> dict[str, list[Variation]
             continue
         single_head = next(iter(heads[p])) if len(heads[p]) == 1 else "_"
         is_univ = single_head == "_" or single_head not in _VARS
-        result[p] = [Variation(k, k, p, single_head, is_universal=is_univ) for k in shared]
+        result[p] = [
+            Variation(k, k, p, single_head, is_universal=is_univ) for k in shared
+        ]
 
     return result
 

@@ -1,6 +1,6 @@
 """Local network helpers for seeding the attacker-side globals (``lhost``)."""
-import socket
 
+import socket
 
 # Interfaces to source ``lhost`` from, in order of preference: the VPN tap into
 # the target network first (tun0), then the primary wired NIC (eth0).

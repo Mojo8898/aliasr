@@ -22,7 +22,10 @@ def test_split_commands_newlines_and_continuation():
 
 def test_split_commands_operator_continuation():
     # a line ending in a pipe / && / || continues onto the next line
-    assert split_commands("cat x |\ngrep y\necho done") == ["cat x |\ngrep y", "echo done"]
+    assert split_commands("cat x |\ngrep y\necho done") == [
+        "cat x |\ngrep y",
+        "echo done",
+    ]
     assert split_commands("a &&\nb") == ["a &&\nb"]
 
 
@@ -50,7 +53,9 @@ def test_assemble_multi_wraps_each_in_arun():
 def test_assemble_multi_is_unquoted_passthrough():
     """A step's trailing `&& export ...` is emitted verbatim after `arun`, so the
     parent shell parses it and the env change persists into later steps."""
-    out = assemble("getTGT.py dom/user && export KRB5CCNAME=$(pwd)/user.ccache\nbloodyAD -k")
+    out = assemble(
+        "getTGT.py dom/user && export KRB5CCNAME=$(pwd)/user.ccache\nbloodyAD -k"
+    )
     assert "arun getTGT.py dom/user && export KRB5CCNAME=$(pwd)/user.ccache" in out
     assert "arun bloodyAD -k" in out
 
@@ -93,7 +98,11 @@ def test_assemble_single_command_skew_is_quoted():
 
 
 def test_assemble_single_command_skew_wrap_applies_inside_arun():
-    out = assemble("getTGT.py dom/user", skew_target="10.0.0.1", wrap=lambda c: f"proxychains -q {c}")
+    out = assemble(
+        "getTGT.py dom/user",
+        skew_target="10.0.0.1",
+        wrap=lambda c: f"proxychains -q {c}",
+    )
     assert out == "AR_SKEW=10.0.0.1 arun proxychains -q getTGT.py dom/user"
 
 
@@ -191,4 +200,6 @@ def test_no_arun_chained_step_starts_with_env_assignment():
             first_token = step.lstrip().split(None, 1)[0] if step.strip() else ""
             if _ENV_ASSIGN_PREFIX.match(first_token):
                 offenders.append(f"{md.name}: {ch.title!r}: {first_token}")
-    assert not offenders, "arun-chained steps with env-assignment prefix:\n" + "\n".join(offenders)
+    assert not offenders, (
+        "arun-chained steps with env-assignment prefix:\n" + "\n".join(offenders)
+    )

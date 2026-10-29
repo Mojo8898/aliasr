@@ -1,6 +1,6 @@
 import os
-import re
 import pickle
+import re
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
@@ -11,6 +11,7 @@ from aliasr.core.config import CHEAT_PATHS, CHEATS_EXCLUDE
 @dataclass(frozen=True, slots=True)
 class Cheat:
     """Represents a single cheat/command from markdown files."""
+
     id: str
     title: str
     cmd: str

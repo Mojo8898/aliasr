@@ -7,8 +7,8 @@ from pathlib import Path
 
 from rich import box
 from rich.console import Console
-from rich.panel import Panel
 from rich.markup import escape
+from rich.panel import Panel
 from rich.table import Table
 
 from aliasr.core.cheats import (
@@ -18,33 +18,32 @@ from aliasr.core.cheats import (
     load_cheats,
 )
 from aliasr.core.config import (
+    ALIASR_HOME,
     BUILD_COLUMNS,
     BUILD_SEPARATOR,
     CHEAT_PATHS,
-    CHEATS_EXCLUDE,
     CHEATS_DEFAULT_GROUPING,
+    CHEATS_EXCLUDE,
     CONFIG,
-    ALIASR_HOME,
-    CREDS_DB,
-    CREDS_PROFILE,
-    CREDS_MASK,
     CREDS_AUTO_HASH,
     CREDS_CONFIRM_DELETE,
-    NXC_BLOCK_BULK_DELETE,
+    CREDS_DB,
+    CREDS_MASK,
+    CREDS_PROFILE,
     DEFAULT_GLOBALS,
+    GLOBALS_AUTO_KRB,
     GLOBALS_COLUMNS,
     GLOBALS_FILE,
     GLOBALS_HISTORY,
     GLOBALS_MAX_LEN,
-    GLOBALS_AUTO_KRB,
-    GLOBALS_SHOW_GRID,
     GLOBALS_ROWS,
+    GLOBALS_SHOW_GRID,
+    NXC_BLOCK_BULK_DELETE,
     THEME,
 )
 from aliasr.core.globals import load_globals_raw
 from aliasr.core.variations import load_variations
 from aliasr.tui.theme import BUNDLED_THEMES
-
 
 console = Console()
 
@@ -59,11 +58,7 @@ def _panel(title: str, style: str = "white") -> Panel:
 
 def _table(headers: list[str] | None = None, **kwargs) -> Table:
     """Create a consistent table."""
-    t = Table(
-        show_header=bool(headers),
-        box=None,
-        **kwargs
-    )
+    t = Table(show_header=bool(headers), box=None, **kwargs)
     if headers:
         for h in headers:
             t.add_column(h)
@@ -137,18 +132,10 @@ def audit_cheats(list_all: bool = False) -> int:
     for c in all_cheats:
         by_id_paths[c.id].add(Path(c.path))
 
-    dupes = {
-        cid: sorted(paths)
-        for cid, paths in by_id_paths.items()
-        if len(paths) > 1
-    }
+    dupes = {cid: sorted(paths) for cid, paths in by_id_paths.items() if len(paths) > 1}
 
     # Find files with zero cheats
-    zeros = [
-        (p, _diagnose_md(p))
-        for p in md_files
-        if count_by_path.get(p, 0) == 0
-    ]
+    zeros = [(p, _diagnose_md(p)) for p in md_files if count_by_path.get(p, 0) == 0]
 
     # Summary table
     t = _table()
@@ -173,7 +160,9 @@ def audit_cheats(list_all: bool = False) -> int:
 
     if zeros:
         console.print()
-        console.print(_panel("FILES WITH NO CHEATS [dim](possible parsing issues)[/]", "yellow"))
+        console.print(
+            _panel("FILES WITH NO CHEATS [dim](possible parsing issues)[/]", "yellow")
+        )
         for p, diag in zeros:
             console.print(f"\n  [red]{p}[/]")
             console.print(f"    [dim]Diagnostics: {diag}[/]")
@@ -186,7 +175,10 @@ def audit_cheats(list_all: bool = False) -> int:
     s = _table()
     s.add_column("Status", style="dim")
     s.add_column("Count", style="bold")
-    s.add_row("✓ Successfully parsed", f"[green]{len([1 for p in md_files if count_by_path.get(p, 0) > 0])} files[/]")
+    s.add_row(
+        "✓ Successfully parsed",
+        f"[green]{len([1 for p in md_files if count_by_path.get(p, 0) > 0])} files[/]",
+    )
     s.add_row("⚠ Parse failures", f"[yellow]{len(zeros)} files[/]")
     s.add_row("⚠ Duplicate IDs", f"[yellow]{len(dupes)} groups[/]")
     console.print(s)
@@ -246,7 +238,9 @@ def audit_cheats(list_all: bool = False) -> int:
             console.print(tbl)
             console.print()
     else:
-        console.print(f"\n[dim](Showing summary only. Use -l or --list-all to see all {len(all_cheats)} cheats)[/]\n")
+        console.print(
+            f"\n[dim](Showing summary only. Use -l or --list-all to see all {len(all_cheats)} cheats)[/]\n"
+        )
 
     return 0
 
@@ -257,7 +251,7 @@ def audit_references() -> int:
     console.print(_panel("PARAMETER REFERENCE AUDIT", "cyan"))
     console.print()
 
-    from aliasr.core.cheats import get_param_refs, _PH_RE
+    from aliasr.core.cheats import _PH_RE, get_param_refs
 
     md_files, _ = _get_md_files(show_excluded=True)
     all_cheats = get_loaded_cheats()
@@ -293,7 +287,9 @@ def audit_references() -> int:
             console.print(f"[bold yellow]{_rel(p)}[/]")
             console.print("  [green]✓ Parameters with references:[/]")
             for title, prm, count in file_params:
-                console.print(f"    [dim]•[/] {title} :: [cyan]<{prm}>[/] ([green]{count} refs[/])")
+                console.print(
+                    f"    [dim]•[/] {title} :: [cyan]<{prm}>[/] ([green]{count} refs[/])"
+                )
             console.print()
 
     # Summary
@@ -347,13 +343,10 @@ def audit_variations() -> int:
 
     # Stats
     total_cmd_variations = sum(
-        len(choices)
-        for params in variations.values()
-        for choices in params.values()
+        len(choices) for params in variations.values() for choices in params.values()
     )
     total_universal_variations = sum(
-        len(choices)
-        for choices in universal_vars.values()
+        len(choices) for choices in universal_vars.values()
     )
 
     console.print()
@@ -363,7 +356,10 @@ def audit_variations() -> int:
     stats.add_row("Commands with variations", f"[cyan]{len(variations)}[/]")
     stats.add_row("Command-specific variations", f"[green]{total_cmd_variations}[/]")
     stats.add_row("Universal variations", f"[magenta]{total_universal_variations}[/]")
-    stats.add_row("Total variations defined", f"[yellow]{total_cmd_variations + total_universal_variations}[/]")
+    stats.add_row(
+        "Total variations defined",
+        f"[yellow]{total_cmd_variations + total_universal_variations}[/]",
+    )
     console.print(stats)
 
     # Show universal variations first
@@ -371,7 +367,9 @@ def audit_variations() -> int:
         console.print()
         console.print(_panel("UNIVERSAL VARIATIONS"))
         for param in sorted(universal_vars):
-            console.print(f"\n  [bold magenta]<{param}>:[/] [dim](applies to any command)[/]")
+            console.print(
+                f"\n  [bold magenta]<{param}>:[/] [dim](applies to any command)[/]"
+            )
             for key, value in universal_vars[param].items():
                 disp = value if len(value) <= 50 else value[:47] + "..."
                 console.print(f"    [dim]•[/] [green]{key}:[/] {disp}")
@@ -394,18 +392,19 @@ def audit_variations() -> int:
 
     # Map to cheats
     all_cheats = get_loaded_cheats()
+    matched_cmd_specific = defaultdict(list)
+    matched_universal = defaultdict(list)
+
     if all_cheats:
         console.print()
         console.print(_panel("CHEATS USING VARIATIONS"))
-
-        matched_cmd_specific = defaultdict(list)
-        matched_universal = defaultdict(list)
 
         for cheat in all_cheats:
             first = (cheat.cmd or "").split()[0] if cheat.cmd else ""
 
             # Extract parameters from command
             from aliasr.core.cheats import _PH_RE
+
             placeholders = _PH_RE.findall(cheat.cmd or "")
             param_names = {tok.split("|", 1)[0] for tok in placeholders}
 
@@ -414,21 +413,24 @@ def audit_variations() -> int:
             if params:
                 for prm in param_names:
                     if prm in params:
-                        matched_cmd_specific[first].append({
-                            "title": cheat.title,
-                            "param": prm,
-                            "variations": list(params[prm].keys()),
-                        })
+                        matched_cmd_specific[first].append(
+                            {
+                                "title": cheat.title,
+                                "param": prm,
+                                "variations": list(params[prm].keys()),
+                            }
+                        )
 
             # Check universal variations (only for params not in command-specific)
             for prm in param_names:
-                if prm in universal_vars:
-                    # Skip if already has command-specific variation
-                    if not (params and prm in params):
-                        matched_universal[prm].append({
+                # Skip if already has command-specific variation
+                if prm in universal_vars and not (params and prm in params):
+                    matched_universal[prm].append(
+                        {
                             "title": cheat.title,
                             "command": first,
-                        })
+                        }
+                    )
 
         # Display command-specific matches
         if matched_cmd_specific:
@@ -448,7 +450,7 @@ def audit_variations() -> int:
                 # Group by command for better readability
                 by_cmd = defaultdict(list)
                 for m in matched_universal[param]:
-                    by_cmd[m['command']].append(m['title'])
+                    by_cmd[m["command"]].append(m["title"])
 
                 for cmd in sorted(by_cmd):
                     console.print(f"      [cyan]{cmd}:[/]")
@@ -466,10 +468,12 @@ def audit_variations() -> int:
         unused_cmd = set(variations.keys()) - used_prefixes
         if unused_cmd:
             issues = True
-            console.print("\n  [yellow]⚠ Command-specific variations for non-existent commands:[/]")
+            console.print(
+                "\n  [yellow]⚠ Command-specific variations for non-existent commands:[/]"
+            )
             for prefix in sorted(unused_cmd):
                 console.print(f"    [red]• {prefix}[/]")
-                for param in variations[prefix].keys():
+                for param in variations[prefix]:
                     console.print(f"      [dim]└─ {param}[/]")
 
     # Check for unused universal variations
@@ -477,13 +481,16 @@ def audit_variations() -> int:
         all_params = set()
         for cheat in all_cheats:
             from aliasr.core.cheats import _PH_RE
+
             placeholders = _PH_RE.findall(cheat.cmd or "")
             all_params.update(tok.split("|", 1)[0] for tok in placeholders)
 
         unused_universal = set(universal_vars.keys()) - all_params
         if unused_universal:
             issues = True
-            console.print("\n  [yellow]⚠ Universal variations for non-existent parameters:[/]")
+            console.print(
+                "\n  [yellow]⚠ Universal variations for non-existent parameters:[/]"
+            )
             for param in sorted(unused_universal):
                 console.print(f"    [red]• <{param}>[/]")
 
@@ -493,7 +500,9 @@ def audit_variations() -> int:
             empties = [k for k, v in vars_dict.items() if not str(v).strip()]
             if empties:
                 issues = True
-                console.print(f"\n  [yellow]⚠ Empty variation values in [{cmd_prefix}.{prm}]:[/]")
+                console.print(
+                    f"\n  [yellow]⚠ Empty variation values in [{cmd_prefix}.{prm}]:[/]"
+                )
                 for k in empties:
                     console.print(f"    [red]• {k}[/]")
 
@@ -501,7 +510,9 @@ def audit_variations() -> int:
         empties = [k for k, v in vars_dict.items() if not str(v).strip()]
         if empties:
             issues = True
-            console.print(f"\n  [yellow]⚠ Empty universal variation values in [_.{prm}]:[/]")
+            console.print(
+                f"\n  [yellow]⚠ Empty universal variation values in [_.{prm}]:[/]"
+            )
             for k in empties:
                 console.print(f"    [red]• {k}[/]")
 
@@ -509,12 +520,14 @@ def audit_variations() -> int:
     if matched_cmd_specific and universal_vars:
         console.print("\n  [dim]Checking for override patterns...[/]")
         override_count = 0
-        for cmd_prefix, matches in matched_cmd_specific.items():
+        for matches in matched_cmd_specific.values():
             for match in matches:
-                if match['param'] in universal_vars:
+                if match["param"] in universal_vars:
                     override_count += 1
         if override_count:
-            console.print(f"    [blue]ℹ {override_count} command-specific variations override universal ones[/]")
+            console.print(
+                f"    [blue]ℹ {override_count} command-specific variations override universal ones[/]"
+            )
 
     if not issues:
         console.print("\n  [green]✓ No issues found[/]")
@@ -591,7 +604,10 @@ def audit_config() -> int:
 
         # Then standard locations
         for p in unique_candidates:
-            if env_resolved is not None and p.expanduser().resolve() == env_resolved.expanduser().resolve():
+            if (
+                env_resolved is not None
+                and p.expanduser().resolve() == env_resolved.expanduser().resolve()
+            ):
                 continue
             exists = p.is_file()
             marker = "[green]✓[/]" if exists else "[red]✗[/]"
@@ -618,7 +634,7 @@ def audit_config() -> int:
     console.print(_panel("CHEATS CONFIGURATION"))
     console.print()
 
-    for i, path in enumerate(CHEAT_PATHS):
+    for path in CHEAT_PATHS:
         if path.exists() and path.is_dir():
             md_count = len(list(path.rglob("*.md")))
             console.print(f"  [green]✓[/] {path} ([cyan]{md_count} .md files[/])")
@@ -659,28 +675,48 @@ def audit_config() -> int:
                 console.print(f"  [red]✗ Globals file invalid JSON: {e}[/]")
         else:
             warnings.append(f"Globals path exists but is not a file: {GLOBALS_FILE}")
-            console.print(f"  [yellow]⚠ Globals file:[/] {GLOBALS_FILE} [yellow](not a file)[/]")
+            console.print(
+                f"  [yellow]⚠ Globals file:[/] {GLOBALS_FILE} [yellow](not a file)[/]"
+            )
     else:
-        console.print(f"  [dim]○ Globals file:[/] {GLOBALS_FILE} [dim](will be created)[/]")
+        console.print(
+            f"  [dim]○ Globals file:[/] {GLOBALS_FILE} [dim](will be created)[/]"
+        )
 
-    console.print(f"  History enabled: [{'green' if GLOBALS_HISTORY else 'red'}]{GLOBALS_HISTORY}[/]")
+    console.print(
+        f"  History enabled: [{'green' if GLOBALS_HISTORY else 'red'}]{GLOBALS_HISTORY}[/]"
+    )
     if GLOBALS_HISTORY:
         console.print(f"  Max history length: [cyan]{GLOBALS_MAX_LEN}[/]")
-    console.print(f"  Auto KRB5CCNAME: [{'green' if GLOBALS_AUTO_KRB else 'red'}]{GLOBALS_AUTO_KRB}[/]")
-    console.print(f"  Show globals grid: [{'green' if GLOBALS_SHOW_GRID else 'red'}]{GLOBALS_SHOW_GRID}[/]")
+    console.print(
+        f"  Auto KRB5CCNAME: [{'green' if GLOBALS_AUTO_KRB else 'red'}]{GLOBALS_AUTO_KRB}[/]"
+    )
+    console.print(
+        f"  Show globals grid: [{'green' if GLOBALS_SHOW_GRID else 'red'}]{GLOBALS_SHOW_GRID}[/]"
+    )
 
     # Validate credentials configuration
     console.print()
     console.print(_panel("CREDENTIALS CONFIGURATION"))
     console.print()
 
-    console.print(f"  {'[green]✓[/]' if CREDS_DB.exists() else '[dim]○[/]'} Credentials DB (Exegol-history): {CREDS_DB}")
+    console.print(
+        f"  {'[green]✓[/]' if CREDS_DB.exists() else '[dim]○[/]'} Credentials DB (Exegol-history): {CREDS_DB}"
+    )
     if CREDS_PROFILE:
         exists = CREDS_PROFILE.exists()
-        console.print(f"  {'[green]✓[/]' if exists else '[dim]○[/]'} Exegol profile.sh: {CREDS_PROFILE}")
-    console.print(f"  Mask credentials: [{'green' if CREDS_MASK else 'red'}]{CREDS_MASK}[/]")
-    console.print(f"  Auto-calculate NT hash: [{'green' if CREDS_AUTO_HASH else 'red'}]{CREDS_AUTO_HASH}[/]")
-    console.print(f"  Confirm menu delete: [{'green' if CREDS_CONFIRM_DELETE else 'red'}]{CREDS_CONFIRM_DELETE}[/]")
+        console.print(
+            f"  {'[green]✓[/]' if exists else '[dim]○[/]'} Exegol profile.sh: {CREDS_PROFILE}"
+        )
+    console.print(
+        f"  Mask credentials: [{'green' if CREDS_MASK else 'red'}]{CREDS_MASK}[/]"
+    )
+    console.print(
+        f"  Auto-calculate NT hash: [{'green' if CREDS_AUTO_HASH else 'red'}]{CREDS_AUTO_HASH}[/]"
+    )
+    console.print(
+        f"  Confirm menu delete: [{'green' if CREDS_CONFIRM_DELETE else 'red'}]{CREDS_CONFIRM_DELETE}[/]"
+    )
 
     # Validate NetExec (nxcdb) integration
     console.print()
@@ -698,15 +734,28 @@ def audit_config() -> int:
 
     if THEME.name:
         all_themes = list(BUNDLED_THEMES.keys()) + [
-            "textual-dark", "textual-light", "dracula", "monokai",
-            "gruvbox", "tokyo-night", "nord", "solarized-dark", "solarized-light"
+            "textual-dark",
+            "textual-light",
+            "dracula",
+            "monokai",
+            "gruvbox",
+            "tokyo-night",
+            "nord",
+            "solarized-dark",
+            "solarized-light",
         ]
         if THEME.name in all_themes:
-            src = "bundled theme" if THEME.name in BUNDLED_THEMES else "Textual built-in theme"
+            src = (
+                "bundled theme"
+                if THEME.name in BUNDLED_THEMES
+                else "Textual built-in theme"
+            )
             console.print(f"  [green]✓ Using {src}:[/] [cyan]{THEME.name}[/]")
         else:
             warnings.append(f"Unknown theme name: {THEME.name}")
-            console.print(f"  [yellow]⚠ Unknown theme:[/] {THEME.name} [yellow](may not exist)[/]")
+            console.print(
+                f"  [yellow]⚠ Unknown theme:[/] {THEME.name} [yellow](may not exist)[/]"
+            )
     else:
         console.print("  [green]✓ Using custom color theme[/]")
 
@@ -716,8 +765,18 @@ def audit_config() -> int:
         ct.add_column("Value")
         ct.add_column("Preview")
 
-        for attr in ["primary", "secondary", "accent", "foreground", "background",
-                     "success", "warning", "error", "surface", "panel"]:
+        for attr in [
+            "primary",
+            "secondary",
+            "accent",
+            "foreground",
+            "background",
+            "success",
+            "warning",
+            "error",
+            "surface",
+            "panel",
+        ]:
             val = getattr(THEME, attr, None)
             if val and isinstance(val, str):
                 if re.match(r"^#[0-9A-Fa-f]{6}$", val):
@@ -787,7 +846,8 @@ def audit_config() -> int:
 
     if BUILD_SEPARATOR.strip():
         preview = (
-            BUILD_SEPARATOR if len(BUILD_SEPARATOR) <= 60
+            BUILD_SEPARATOR
+            if len(BUILD_SEPARATOR) <= 60
             else BUILD_SEPARATOR[:57] + "..."
         )
         console.print("  [green]✓[/] Multi-command separator configured")
@@ -855,13 +915,16 @@ def _audit_defaults() -> int:
         },
         "Keybindings": {
             "Total Bindings": str(
-                sum(len(d) for d in (
-                    CONFIG.keybindings.root,
-                    CONFIG.keybindings.build_screen,
-                    CONFIG.keybindings.grid_nav,
-                    CONFIG.keybindings.table,
-                    CONFIG.keybindings.table_copy,
-                ))
+                sum(
+                    len(d)
+                    for d in (
+                        CONFIG.keybindings.root,
+                        CONFIG.keybindings.build_screen,
+                        CONFIG.keybindings.grid_nav,
+                        CONFIG.keybindings.table,
+                        CONFIG.keybindings.table_copy,
+                    )
+                )
             ),
         },
         "Layout": {

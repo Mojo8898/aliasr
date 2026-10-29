@@ -1,5 +1,5 @@
-from rich.table import Table
 from rich.padding import Padding
+from rich.table import Table
 from textual.binding import Binding
 from textual.widgets.option_list import Option
 
@@ -7,7 +7,6 @@ from aliasr.core.config import CREDS_MASK, kb_table
 from aliasr.core.creds import Credential
 from aliasr.core.globals import normalize_key
 from aliasr.core.hosts import Host
-
 
 TABLE_BINDINGS = [
     Binding(
@@ -92,7 +91,7 @@ def cred_option(c: Credential, idx: int) -> Option:
         _mask(c.hash) if CREDS_MASK else c.hash,
         c.domain,
     )
-    return Option(t, id=idx)
+    return Option(t, id=idx)  # pyright: ignore[reportArgumentType]
 
 
 def host_header():
@@ -112,4 +111,4 @@ def host_option(h: Host, idx: int) -> Option:
     t.add_column("role", no_wrap=True, ratio=1)
     # hostname holds the FQDN; show its short name and domain in separate columns.
     t.add_row(h.ip, h.short_hostname, h.domain, h.role)
-    return Option(t, id=idx)
+    return Option(t, id=idx)  # pyright: ignore[reportArgumentType]

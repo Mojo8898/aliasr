@@ -1,8 +1,8 @@
 """Config staleness detection + in-place injection of missing defaults."""
+
 import tomllib
 
 from aliasr.core import config
-
 
 # ---------- key diffing ----------
 
@@ -70,7 +70,7 @@ def test_inject_adds_key_in_existing_section(tmp_path):
     with cfg.open("rb") as f:
         data = tomllib.load(f)
     assert data["creds"]["confirm_delete"] is True  # default injected
-    assert data["creds"]["mask"] is False            # existing value preserved
+    assert data["creds"]["mask"] is False  # existing value preserved
 
 
 def test_inject_adds_missing_section(tmp_path):
@@ -88,7 +88,7 @@ def test_inject_adds_missing_nested_subtable(tmp_path):
     # nested `copy` sub-table must get a real [keybindings.table.copy] section,
     # not a corrupt `copy = ""` scalar that crashes kb_table_copy() on reload.
     cfg = tmp_path / "config.toml"
-    cfg.write_text("[keybindings.table]\nedit_row = \"e\"\n")
+    cfg.write_text('[keybindings.table]\nedit_row = "e"\n')
     config.inject_missing_defaults(cfg, ["keybindings.table.copy"])
     with cfg.open("rb") as f:
         data = tomllib.load(f)

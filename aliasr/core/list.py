@@ -1,12 +1,12 @@
+from rich import box
 from rich.console import Console
 from rich.table import Table
-from rich import box
 
 
 def list_globals() -> int:
     """List all globals and their current values."""
-    from aliasr.core.globals import load_globals, load_globals_raw
     from aliasr.core.config import GLOBALS_HISTORY
+    from aliasr.core.globals import load_globals, load_globals_raw
 
     console = Console()
 
@@ -31,7 +31,7 @@ def list_globals() -> int:
         table.add_column("History Count", style="dim", justify="center")
 
     # Display globals in the order they appear in the file (preserved by load_globals)
-    for key in current_globals.keys():
+    for key in current_globals:
         value = current_globals[key]
         display_value = str(value) if value else "[dim]<empty>[/]"
 
@@ -54,8 +54,8 @@ def list_globals() -> int:
 
 def list_creds() -> int:
     """List all saved credentials."""
-    from aliasr.core.creds import load_creds
     from aliasr.core.config import CREDS_MASK
+    from aliasr.core.creds import load_creds
 
     console = Console()
 

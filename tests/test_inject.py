@@ -28,14 +28,18 @@ def _no_tty(_p):
 
 def test_short_command_is_typed_inline(monkeypatch):
     sent = {}
-    monkeypatch.setattr(ij, "_tty_inject", lambda payload: sent.setdefault("tty", payload))
+    monkeypatch.setattr(
+        ij, "_tty_inject", lambda payload: sent.setdefault("tty", payload)
+    )
     ij.inject("echo hi", using_tmux=False, execute=True)
     assert sent["tty"] == "echo hi\n"
 
 
 def test_long_execute_copies_whole_command_to_clipboard(monkeypatch):
     copied = {}
-    monkeypatch.setattr(ij, "copy_to_clipboard", lambda c: copied.setdefault("cmd", c) or 0)
+    monkeypatch.setattr(
+        ij, "copy_to_clipboard", lambda c: copied.setdefault("cmd", c) or 0
+    )
     monkeypatch.setattr(ij, "_tty_inject", _no_tty)
     monkeypatch.setattr(ij, "_tmux_send_keys", lambda *a, **k: False)
 
@@ -48,7 +52,9 @@ def test_long_execute_copies_whole_command_to_clipboard(monkeypatch):
 
 def test_long_review_copies_whole_command_to_clipboard(monkeypatch):
     copied = {}
-    monkeypatch.setattr(ij, "copy_to_clipboard", lambda c: copied.setdefault("cmd", c) or 0)
+    monkeypatch.setattr(
+        ij, "copy_to_clipboard", lambda c: copied.setdefault("cmd", c) or 0
+    )
     monkeypatch.setattr(ij, "_tty_inject", _no_tty)
 
     cmd = _long_cmd()
@@ -57,7 +63,11 @@ def test_long_review_copies_whole_command_to_clipboard(monkeypatch):
 
 
 def test_long_falls_back_to_0600_file_without_clipboard(monkeypatch, capsys):
-    monkeypatch.setattr(ij, "copy_to_clipboard", lambda _c: (_ for _ in ()).throw(RuntimeError("no clipboard")))
+    monkeypatch.setattr(
+        ij,
+        "copy_to_clipboard",
+        lambda _c: (_ for _ in ()).throw(RuntimeError("no clipboard")),
+    )
     monkeypatch.setattr(ij, "_tty_inject", _no_tty)
 
     cmd = _long_cmd()
@@ -68,7 +78,8 @@ def test_long_falls_back_to_0600_file_without_clipboard(monkeypatch, capsys):
     assert "saved to" in err
     path = err.split("saved to ", 1)[1].split(" ", 1)[0].strip()
     assert oct(os.stat(path).st_mode & 0o777) == "0o600"
-    assert open(path).read().startswith(cmd)
+    with open(path) as f:
+        assert f.read().startswith(cmd)
     os.unlink(path)
 
 
@@ -86,7 +97,9 @@ def test_execute_boundary_fits_with_the_enter_newline(monkeypatch):
 
 def test_execute_one_byte_over_goes_to_clipboard(monkeypatch):
     copied = {}
-    monkeypatch.setattr(ij, "copy_to_clipboard", lambda c: copied.setdefault("c", c) or 0)
+    monkeypatch.setattr(
+        ij, "copy_to_clipboard", lambda c: copied.setdefault("c", c) or 0
+    )
     monkeypatch.setattr(ij, "_tty_inject", _no_tty)
 
     cmd = "A" * ij._TTY_LIMIT  # cmd + "\n" == _TTY_LIMIT + 1 -> overflows
@@ -107,7 +120,9 @@ def test_review_boundary_exactly_fills_the_buffer(monkeypatch):
 
 def test_review_one_byte_over_goes_to_clipboard(monkeypatch):
     copied = {}
-    monkeypatch.setattr(ij, "copy_to_clipboard", lambda c: copied.setdefault("c", c) or 0)
+    monkeypatch.setattr(
+        ij, "copy_to_clipboard", lambda c: copied.setdefault("c", c) or 0
+    )
     monkeypatch.setattr(ij, "_tty_inject", _no_tty)
 
     cmd = "A" * (ij._TTY_LIMIT + 1)
@@ -120,7 +135,9 @@ def test_multibyte_over_byte_limit_goes_to_clipboard(monkeypatch):
     the limit by char count but overflows it in UTF-8 must still be handed off,
     or the kernel would truncate it mid-command."""
     copied = {}
-    monkeypatch.setattr(ij, "copy_to_clipboard", lambda c: copied.setdefault("c", c) or 0)
+    monkeypatch.setattr(
+        ij, "copy_to_clipboard", lambda c: copied.setdefault("c", c) or 0
+    )
     monkeypatch.setattr(ij, "_tty_inject", _no_tty)
 
     # "€" is 1 char but 3 UTF-8 bytes: well under the char limit, over the byte limit.
@@ -171,7 +188,7 @@ def test_tty_inject_pushes_full_utf8_bytes(monkeypatch):
     monkeypatch.setattr(fcntl, "ioctl", lambda fd, req, arg: pushed.extend(arg))
 
     assert ij._tty_inject("café\n") is True
-    assert bytes(pushed) == "café\n".encode("utf-8")
+    assert bytes(pushed) == "café\n".encode()
 
 
 def test_inline_delivery_failure_returns_nonzero(monkeypatch):
@@ -276,7 +293,9 @@ def test_enable_tiocsti_default_yes_applies_sysctl(monkeypatch):
     runs = []
     monkeypatch.setattr(subprocess, "run", lambda *a, **k: runs.append(a[0]) or None)
     written = {}
-    monkeypatch.setattr(ij.Path, "write_bytes", lambda self, data: written.update(p=str(self), d=data))
+    monkeypatch.setattr(
+        ij.Path, "write_bytes", lambda self, data: written.update(p=str(self), d=data)
+    )
 
     assert ij._enable_tiocsti() is True
     assert runs == [["sysctl", "-w", "dev.tty.legacy_tiocsti=1"]]
@@ -291,6 +310,8 @@ def test_enable_tiocsti_declined(monkeypatch):
 
     monkeypatch.setattr(builtins, "input", lambda _p="": "n")
     monkeypatch.setattr(
-        subprocess, "run", lambda *a, **k: (_ for _ in ()).throw(AssertionError("ran a command"))
+        subprocess,
+        "run",
+        lambda *a, **k: (_ for _ in ()).throw(AssertionError("ran a command")),
     )
     assert ij._enable_tiocsti() is False

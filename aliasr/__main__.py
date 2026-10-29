@@ -1,5 +1,5 @@
-import os
 import argparse
+import os
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -28,7 +28,10 @@ def _parser() -> argparse.ArgumentParser:
         "-r", "--references", action="store_true", help="Audit parameter references"
     )
     audit.add_argument(
-        "-v", "--variations", action="store_true", help="Audit variations (variations.toml)"
+        "-v",
+        "--variations",
+        action="store_true",
+        help="Audit variations (variations.toml)",
     )
     audit.add_argument(
         "--config", action="store_true", help="Audit configuration (config.toml)"
@@ -37,7 +40,9 @@ def _parser() -> argparse.ArgumentParser:
         "-a", "--all", action="store_true", help="Run every audit section in full"
     )
     audit.add_argument(
-        "-l", "--list-all", action="store_true",
+        "-l",
+        "--list-all",
+        action="store_true",
         help="With --cheats, list every individual cheat",
     )
 
@@ -57,44 +62,37 @@ def _parser() -> argparse.ArgumentParser:
     # ---------- Scan ----------
 
     scan = sub.add_parser("scan", help="Auto-populate globals from a target IP")
-    scan.add_argument(
-        "ip",
-        metavar="IP",
-        help="Target IP address to scan"
-    )
+    scan.add_argument("ip", metavar="IP", help="Target IP address to scan")
 
     # Authentication: these mirror NetExec's own flags and are passed straight
     # through to nxc, so any combination NetExec accepts is accepted here.
     scan.add_argument(
-        "-u", "--user",
-        metavar="USER",
-        help="Username for authenticated scan"
+        "-u", "--user", metavar="USER", help="Username for authenticated scan"
     )
     scan.add_argument(
-        "-p", "--password",
-        metavar="PASSWORD",
-        help="Password for authenticated scan"
+        "-p", "--password", metavar="PASSWORD", help="Password for authenticated scan"
     )
     scan.add_argument(
-        "-H", "--hash",
-        metavar="HASH",
-        help="NT hash for authenticated scan"
+        "-H", "--hash", metavar="HASH", help="NT hash for authenticated scan"
     )
     scan.add_argument(
-        "-k", "--kerberos",
+        "-k",
+        "--kerberos",
         action="store_true",
         help="Use Kerberos auth (requests a TGT from the supplied creds, "
-             "or uses the ccache when given alone)"
+        "or uses the ccache when given alone)",
     )
     scan.add_argument(
         "--use-kcache",
         action="store_true",
-        help="Use Kerberos auth from the ccache (KRB5CCNAME)"
+        help="Use Kerberos auth from the ccache (KRB5CCNAME)",
     )
 
     # ---------- List ----------
 
-    list_cmd = sub.add_parser("list", help="List globals and/or credentials (default: both)")
+    list_cmd = sub.add_parser(
+        "list", help="List globals and/or credentials (default: both)"
+    )
     list_cmd.add_argument(
         "-g", "--globals", action="store_true", help="List only globals"
     )
@@ -105,7 +103,8 @@ def _parser() -> argparse.ArgumentParser:
     # ---------- Init ----------
 
     init = sub.add_parser(
-        "init", help="Append aliasr's zsh/tmux integration to your dotfiles (default: both)"
+        "init",
+        help="Append aliasr's zsh/tmux integration to your dotfiles (default: both)",
     )
     init.add_argument(
         "-z", "--zsh", action="store_true", help="Set up only zsh (~/.zshrc)"
@@ -126,7 +125,9 @@ def _parser() -> argparse.ArgumentParser:
     )
     clear.add_argument("-h", "--hosts", action="store_true", help="Clear hosts")
     clear.add_argument(
-        "-a", "--all", action="store_true",
+        "-a",
+        "--all",
+        action="store_true",
         help="Clear everything (globals, credentials, hosts)",
     )
     clear.add_argument(
@@ -197,14 +198,17 @@ def main() -> int:
 
     if args.cmd == "list":
         from aliasr.core.list import run_list
+
         return run_list(args.globals, args.credentials)
 
     if args.cmd == "init":
         from aliasr.core.init import run_init
+
         return run_init(args.zsh, args.tmux)
 
     if args.cmd == "scan":
         from aliasr.core.scan import run_scan_cli
+
         return run_scan_cli(
             args.ip,
             args.user,

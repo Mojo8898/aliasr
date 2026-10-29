@@ -1,8 +1,10 @@
+import contextlib
+from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
-from typing import Any, Callable, Iterable, Sequence
+from typing import Any
 
 from textual.css.query import NoMatches
-from textual.events import MouseScrollUp, MouseScrollDown
+from textual.events import MouseScrollDown, MouseScrollUp
 from textual.geometry import Offset, Region, Spacing
 from textual.widgets import Input
 from textual_autocomplete import (
@@ -25,7 +27,7 @@ class SmartComplete(AutoComplete):
         self,
         target: Input,
         candidates: Iterable[str | DropdownItem]
-        | Callable[[TargetState], Sequence[DropdownItem]]
+        | Callable[[TargetState], Sequence[str | DropdownItem]]
         | None = None,
         *,
         path_kwargs: dict | None = None,
@@ -42,9 +44,11 @@ class SmartComplete(AutoComplete):
         super().__init__(target=target, candidates=None, **kwargs)
         self._candidates = candidates
         self._path_kwargs = dict(path_kwargs or {})
-        self._path_ac = PathAutoComplete(
-            target=target, path=Path.cwd(), **self._path_kwargs
-        ) if enable_paths else None
+        self._path_ac = (
+            PathAutoComplete(target=target, path=Path.cwd(), **self._path_kwargs)
+            if enable_paths
+            else None
+        )
         self._dropdown_class = dropdown_class
         self._on_completed = on_completed
         self._enable_paths = enable_paths
@@ -163,8 +167,9 @@ class SmartComplete(AutoComplete):
 
     # ---------- Overrides ----------
 
-    def get_candidates(self, state):
-        if self._enable_paths and self._mode(state.text) != "regular":
+    def get_candidates(self, target_state):
+        state = target_state
+        if self._path_ac and self._mode(state.text) != "regular":
             pfx, stripped = self._split_prefix(state.text)
             if pfx:
                 mode = (
@@ -178,8 +183,9 @@ class SmartComplete(AutoComplete):
                 )
         return self._regular_candidates(state)
 
-    def get_search_string(self, state):
-        if self._enable_paths and self._mode(state.text) != "regular":
+    def get_search_string(self, target_state):
+        state = target_state
+        if self._path_ac and self._mode(state.text) != "regular":
             pfx, stripped = self._split_prefix(state.text)
             if pfx:
                 mode = (
@@ -194,7 +200,7 @@ class SmartComplete(AutoComplete):
 
     def apply_completion(self, value, state):
         pfx, stripped = self._split_prefix(state.text)
-        if not pfx:
+        if not pfx or not self._path_ac:
             super().apply_completion(value, state)
             committed = self.target.value
         else:
@@ -224,12 +230,15 @@ class SmartComplete(AutoComplete):
             self.app.action_focus_next()
 
         if self._submit_on_complete:
+
             def _submit():
                 # Ensure the target has focus first
                 if not self.target.has_focus:
                     self.target.focus()
                 # Post the Submitted event directly
-                self.target.post_message(self.target.Submitted(self.target, self.target.value))
+                self.target.post_message(
+                    self.target.Submitted(self.target, self.target.value)
+                )
 
             self.call_after_refresh(_submit)
 
@@ -280,10 +289,9 @@ class SmartComplete(AutoComplete):
                 # Check if mouse is over the option list
                 if self.option_list.region.contains(event.screen_x, event.screen_y):
                     from textual.actions import SkipAction
-                    try:
+
+                    with contextlib.suppress(SkipAction):
                         self.option_list.action_scroll_up()
-                    except SkipAction:
-                        pass  # Can't scroll, that's fine
                     event.stop()
             except (NoMatches, AttributeError):
                 pass
@@ -295,10 +303,9 @@ class SmartComplete(AutoComplete):
                 # Check if mouse is over the option list
                 if self.option_list.region.contains(event.screen_x, event.screen_y):
                     from textual.actions import SkipAction
-                    try:
+
+                    with contextlib.suppress(SkipAction):
                         self.option_list.action_scroll_down()
-                    except SkipAction:
-                        pass  # Can't scroll, that's fine
                     event.stop()
             except (NoMatches, AttributeError):
                 pass
@@ -339,7 +346,5 @@ class SmartComplete(AutoComplete):
             return
 
     def on_unmount(self) -> None:
-        try:
+        with contextlib.suppress(Exception):
             self.action_hide()
-        except Exception:
-            pass

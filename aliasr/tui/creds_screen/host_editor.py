@@ -3,7 +3,7 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Grid, Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Static, Input
+from textual.widgets import Input, Static
 
 from aliasr.tui.utils.grid_nav import GRID_NAV_BINDINGS, grid_nav
 
@@ -13,7 +13,6 @@ class HostEditor(ModalScreen[tuple[str, str, str] | None]):
 
     BINDINGS = [
         Binding("escape", "cancel"),
-
         *GRID_NAV_BINDINGS,
     ]
 
@@ -31,7 +30,9 @@ class HostEditor(ModalScreen[tuple[str, str, str] | None]):
             with Grid(id="grid"):
                 yield Input(value=self._ip, placeholder="Enter IP...", id="ip")
                 yield Input(
-                    value=self._hostname, placeholder="Enter hostname/FQDN...", id="hostname"
+                    value=self._hostname,
+                    placeholder="Enter hostname/FQDN...",
+                    id="hostname",
                 )
                 yield Input(
                     value=self._role, placeholder="Enter role (e.g. DC)...", id="role"

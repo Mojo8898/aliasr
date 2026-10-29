@@ -4,9 +4,8 @@ import os
 import re
 import shutil
 import socket
-from subprocess import run, TimeoutExpired
+from subprocess import TimeoutExpired, run
 from typing import Any
-
 
 # --------- parsers ---------
 
@@ -25,29 +24,51 @@ _KRB_USER = re.compile(r"\[?\+\]?\s+([^\\]+)\\([^\s]+)\s+from\s+ccache", re.I)
 # password-free signature and surface a friendly hint instead.
 
 _ISSUE_RULES: list[tuple[re.Pattern[str], str]] = [
-    (re.compile(r"KRB_AP_ERR_SKEW|clock skew", re.I),
-     "Kerberos clock skew (KRB_AP_ERR_SKEW): sync your clock to the DC "
-     "(e.g. `sudo rdate -n <dc>`, `ntpdate <dc>`, or run under skewrun)."),
-    (re.compile(r"KDC_ERR_PREAUTH_FAILED", re.I),
-     "Kerberos pre-auth failed (KDC_ERR_PREAUTH_FAILED): wrong password or hash."),
-    (re.compile(r"KDC_ERR_[CS]_PRINCIPAL_UNKNOWN", re.I),
-     "Kerberos principal unknown (KDC_ERR_*_PRINCIPAL_UNKNOWN): check the "
-     "username and realm."),
-    (re.compile(r"Name or service not known|could not be resolved|getaddrinfo|"
-                r"Errno -[0-9]|Temporary failure in name resolution", re.I),
-     "DNS resolution failed: the target/DC name couldn't be resolved "
-     "(use the FQDN and point your resolver at the DC)."),
-    (re.compile(r"STATUS_LOGON_FAILURE", re.I),
-     "Authentication failed (STATUS_LOGON_FAILURE): bad username, password, or hash."),
-    (re.compile(r"STATUS_ACCOUNT_LOCKED_OUT", re.I),
-     "Account locked out (STATUS_ACCOUNT_LOCKED_OUT)."),
-    (re.compile(r"STATUS_PASSWORD_EXPIRED|STATUS_PASSWORD_MUST_CHANGE", re.I),
-     "Password expired or must be changed for this account."),
-    (re.compile(r"STATUS_ACCESS_DENIED", re.I),
-     "Access denied (STATUS_ACCESS_DENIED): the account lacks rights for this query."),
-    (re.compile(r"Connection (?:refused|reset)|timed out|No route to host|unreachable",
-                re.I),
-     "Could not reach the target (connection refused / timeout / unreachable)."),
+    (
+        re.compile(r"KRB_AP_ERR_SKEW|clock skew", re.I),
+        "Kerberos clock skew (KRB_AP_ERR_SKEW): sync your clock to the DC "
+        "(e.g. `sudo rdate -n <dc>`, `ntpdate <dc>`, or run under skewrun).",
+    ),
+    (
+        re.compile(r"KDC_ERR_PREAUTH_FAILED", re.I),
+        "Kerberos pre-auth failed (KDC_ERR_PREAUTH_FAILED): wrong password or hash.",
+    ),
+    (
+        re.compile(r"KDC_ERR_[CS]_PRINCIPAL_UNKNOWN", re.I),
+        "Kerberos principal unknown (KDC_ERR_*_PRINCIPAL_UNKNOWN): check the "
+        "username and realm.",
+    ),
+    (
+        re.compile(
+            r"Name or service not known|could not be resolved|getaddrinfo|"
+            r"Errno -[0-9]|Temporary failure in name resolution",
+            re.I,
+        ),
+        "DNS resolution failed: the target/DC name couldn't be resolved "
+        "(use the FQDN and point your resolver at the DC).",
+    ),
+    (
+        re.compile(r"STATUS_LOGON_FAILURE", re.I),
+        "Authentication failed (STATUS_LOGON_FAILURE): bad username, password, or hash.",
+    ),
+    (
+        re.compile(r"STATUS_ACCOUNT_LOCKED_OUT", re.I),
+        "Account locked out (STATUS_ACCOUNT_LOCKED_OUT).",
+    ),
+    (
+        re.compile(r"STATUS_PASSWORD_EXPIRED|STATUS_PASSWORD_MUST_CHANGE", re.I),
+        "Password expired or must be changed for this account.",
+    ),
+    (
+        re.compile(r"STATUS_ACCESS_DENIED", re.I),
+        "Access denied (STATUS_ACCESS_DENIED): the account lacks rights for this query.",
+    ),
+    (
+        re.compile(
+            r"Connection (?:refused|reset)|timed out|No route to host|unreachable", re.I
+        ),
+        "Could not reach the target (connection refused / timeout / unreachable).",
+    ),
 ]
 
 
@@ -138,7 +159,9 @@ def _auth_args(
 # --------- SMB-first fingerprint (no creds) ---------
 
 
-def _fp_smb(ip: str, auth: list[str], issues: list[str] | None = None) -> dict[str, Any]:
+def _fp_smb(
+    ip: str, auth: list[str], issues: list[str] | None = None
+) -> dict[str, Any]:
     res: dict[str, Any] = {
         "Hostname": None,
         "Domain": None,
@@ -186,7 +209,9 @@ def _fp_ldap_banner(ip: str, issues: list[str] | None = None) -> dict[str, Any]:
     return res
 
 
-def _fp_ldap(ip: str, auth: list[str], issues: list[str] | None = None) -> dict[str, Any]:
+def _fp_ldap(
+    ip: str, auth: list[str], issues: list[str] | None = None
+) -> dict[str, Any]:
     res: dict[str, Any] = {
         "Hostname": None,
         "Domain": None,
@@ -353,12 +378,13 @@ def run_scan_cli(
     use_kcache: bool = False,
 ) -> int:
     """Execute scan command and update globals."""
-    from aliasr.core.globals import load_globals_raw, save_globals
-    from aliasr.core.config import GLOBALS_HISTORY
-    from rich.console import Console
-    from rich.table import Table
-    from rich.panel import Panel
     from rich import box
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.table import Table
+
+    from aliasr.core.config import GLOBALS_HISTORY
+    from aliasr.core.globals import load_globals_raw, save_globals
 
     console = Console()
 
@@ -395,9 +421,7 @@ def run_scan_cli(
     # Run the scan
     issues: list[str] = []
     with console.status("[bold yellow]Scanning...[/]", spinner="dots"):
-        results = scan_target(
-            ip, user, password, nt_hash, kerberos, use_kcache, issues
-        )
+        results = scan_target(ip, user, password, nt_hash, kerberos, use_kcache, issues)
 
     # If we discovered the principal (e.g. from a ccache), use it for creds
     if results.get("user"):
@@ -454,7 +478,7 @@ def run_scan_cli(
 
         # Check if this credential already exists
         found = False
-        for i, cred in enumerate(existing_creds):
+        for _i, cred in enumerate(existing_creds):
             if (
                 cred.username == user
                 and (

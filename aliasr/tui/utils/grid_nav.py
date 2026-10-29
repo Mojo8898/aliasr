@@ -1,6 +1,6 @@
 from textual.binding import Binding
-from aliasr.core.config import kb_grid_nav
 
+from aliasr.core.config import kb_grid_nav
 
 GRID_NAV_BINDINGS = [
     Binding(

@@ -62,6 +62,7 @@ def test_single_quote_in_value_is_escaped(tmp_path):
 
     # ...and the value must come back intact.
     cur = exegol.current_credential(prof)
+    assert cur is not None
     assert cur.password == "P@ss'word"
 
 

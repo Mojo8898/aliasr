@@ -5,6 +5,7 @@ subset exegol cares about into the shared hosts table so the two tools stay in
 sync. Writes upsert on (ip, hostname) and never delete, so hosts added in
 exegol are preserved.
 """
+
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 

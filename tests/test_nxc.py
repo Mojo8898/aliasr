@@ -6,15 +6,16 @@ NetExec's protocol databases, point ``ALIASR_NXC_HOME`` at it, and assert that:
   * deleting a NetExec-sourced credential in aliasr deletes it from NetExec too,
     while hand-entered credentials and the NetExec DB are otherwise untouched.
 """
+
+import contextlib
 import sqlite3
 import textwrap
 
 import pytest
 
 from aliasr.core import creds as creds_mod
-from aliasr.core import exegol
+from aliasr.core import exegol, nxc
 from aliasr.core import hosts as hosts_mod
-from aliasr.core import nxc
 from aliasr.core.creds import (
     Credential,
     clear_creds,
@@ -28,7 +29,6 @@ from aliasr.core.hosts import (
     reconcile_hosts,
 )
 
-
 # NetExec protocol-DB DDL (trimmed to the columns aliasr reads), matching
 # nxc 1.5.x. Every protocol DB shares the same `users` shape.
 _USERS_DDL = """
@@ -40,12 +40,15 @@ CREATE TABLE users (
 
 
 # smb.db carries the `dc` flag; other protocol DBs omit it.
-_SMB_DDL = _USERS_DDL + """
+_SMB_DDL = (
+    _USERS_DDL
+    + """
 CREATE TABLE hosts (
     id INTEGER NOT NULL, ip VARCHAR, hostname VARCHAR, domain VARCHAR,
     os VARCHAR, dc BOOLEAN, PRIMARY KEY (id), UNIQUE (ip)
 );
 """
+)
 
 
 def _make_db(path, users=(), hosts=()):
@@ -95,7 +98,8 @@ def nxc_home(tmp_path, monkeypatch):
         textwrap.dedent("""
             [nxc]
             workspace = default
-        """).strip() + "\n"
+        """).strip()
+        + "\n"
     )
     monkeypatch.setenv("ALIASR_NXC_HOME", str(home))
 
@@ -121,8 +125,10 @@ def test_read_creds_maps_plaintext_and_hash(nxc_home):
     nt = "A" * 32
     _make_db(
         nxc_home / "smb.db",
-        users=[("corp.local", "admin", "Passw0rd!", "plaintext"),
-               ("corp.local", "svc", f"{'0' * 32}:{nt.lower()}", "hash")],
+        users=[
+            ("corp.local", "admin", "Passw0rd!", "plaintext"),
+            ("corp.local", "svc", f"{'0' * 32}:{nt.lower()}", "hash"),
+        ],
     )
     got = {c.username: c for c in nxc.read_creds("default")}
     assert got["admin"].password == "Passw0rd!" and got["admin"].hash == ""
@@ -145,8 +151,9 @@ def test_read_creds_empty_when_home_missing(tmp_path, monkeypatch):
 
 
 def test_load_pulls_nxc_creds_into_store(nxc_home):
-    _make_db(nxc_home / "smb.db",
-             users=[("corp.local", "admin", "Passw0rd!", "plaintext")])
+    _make_db(
+        nxc_home / "smb.db", users=[("corp.local", "admin", "Passw0rd!", "plaintext")]
+    )
     loaded = {c.username for c in load_creds()}
     assert "admin" in loaded
 
@@ -154,8 +161,9 @@ def test_load_pulls_nxc_creds_into_store(nxc_home):
 def test_pull_preserves_hand_entered_creds(nxc_home):
     # Seed a hand-entered cred synchronously (save_creds writes on a thread).
     creds_mod._db.write([Credential("existing", "secret", "", "corp.local")])
-    _make_db(nxc_home / "smb.db",
-             users=[("corp.local", "admin", "Passw0rd!", "plaintext")])
+    _make_db(
+        nxc_home / "smb.db", users=[("corp.local", "admin", "Passw0rd!", "plaintext")]
+    )
     loaded = {c.username for c in load_creds()}
     assert {"existing", "admin"} <= loaded
 
@@ -165,8 +173,13 @@ def test_pull_preserves_hand_entered_creds(nxc_home):
 
 def test_delete_in_aliasr_removes_from_nxc(nxc_home):
     db = nxc_home / "smb.db"
-    _make_db(db, users=[("corp.local", "admin", "Passw0rd!", "plaintext"),
-                        ("corp.local", "keep", "pw", "plaintext")])
+    _make_db(
+        db,
+        users=[
+            ("corp.local", "admin", "Passw0rd!", "plaintext"),
+            ("corp.local", "keep", "pw", "plaintext"),
+        ],
+    )
     rows = load_creds()
     assert {"admin", "keep"} <= {c.username for c in rows}
 
@@ -176,7 +189,7 @@ def test_delete_in_aliasr_removes_from_nxc(nxc_home):
 
     remaining = {u for _, u, _ in _users(db)}
     assert "admin" not in remaining  # propagated out of NetExec
-    assert "keep" in remaining       # untouched
+    assert "keep" in remaining  # untouched
 
 
 def test_delete_propagates_across_all_protocol_dbs(nxc_home):
@@ -210,8 +223,10 @@ def test_empty_domain_merge_does_not_spuriously_delete(nxc_home):
     # exh has admin@CORP; NetExec has admin with empty domain -> they merge.
     creds_mod._db.write([Credential("admin", "pw", "", "CORP")])
     db = nxc_home / "smb.db"
-    _make_db(db, users=[("", "admin", "pw", "plaintext"),
-                        ("CORP", "other", "x", "plaintext")])
+    _make_db(
+        db,
+        users=[("", "admin", "pw", "plaintext"), ("CORP", "other", "x", "plaintext")],
+    )
     rows = load_creds()
     assert "admin" in {c.username for c in rows}
 
@@ -262,11 +277,11 @@ async def test_creds_screen_delete_propagates_to_nxc(app, nxc_home):
         assert screen._tab == "creds"  # creds tab shown by default
         assert "admin" in {c.username for c in screen._rows["creds"]}  # pulled in
 
-        screen.action_delete_row()   # opens the confirm prompt
+        screen.action_delete_row()  # opens the confirm prompt
         await pilot.pause()
-        await pilot.press("y")        # confirm -> removes the row
+        await pilot.press("y")  # confirm -> removes the row
         await pilot.pause()
-        await app.pop_screen()        # fires on_unmount -> save_creds([])
+        await app.pop_screen()  # fires on_unmount -> save_creds([])
         await pilot.pause()
 
     assert _users(db) == []
@@ -278,8 +293,10 @@ async def test_creds_screen_delete_propagates_to_nxc(app, nxc_home):
 def test_read_hosts_maps_fqdn_and_dc(nxc_home):
     _make_db(
         nxc_home / "smb.db",
-        hosts=[("10.0.0.1", "DC01", "corp.local", "Server 2019", 1),
-               ("10.0.0.5", "WEB01", "corp.local", "Server 2016", 0)],
+        hosts=[
+            ("10.0.0.1", "DC01", "corp.local", "Server 2019", 1),
+            ("10.0.0.5", "WEB01", "corp.local", "Server 2016", 0),
+        ],
     )
     by_ip = {h.ip: h for h in nxc.read_hosts("default")}
     assert by_ip["10.0.0.1"].hostname == "DC01.corp.local"
@@ -301,9 +318,7 @@ def _make_ldap_db(path, hosts=()):
         );
         """
     )
-    conn.executemany(
-        "INSERT INTO hosts (ip, hostname, domain) VALUES (?,?,?)", hosts
-    )
+    conn.executemany("INSERT INTO hosts (ip, hostname, domain) VALUES (?,?,?)", hosts)
     conn.commit()
     conn.close()
 
@@ -324,8 +339,10 @@ def test_ldap_presence_marks_host_as_dc(nxc_home):
 
 def test_non_ldap_host_without_dc_flag_is_not_dc(nxc_home):
     """A host seen only over SMB with the dc flag unset stays a plain host."""
-    _make_db(nxc_home / "smb.db",
-             hosts=[("10.0.0.5", "WEB01", "corp.local", "Server 2016", 0)])
+    _make_db(
+        nxc_home / "smb.db",
+        hosts=[("10.0.0.5", "WEB01", "corp.local", "Server 2016", 0)],
+    )
     by_ip = {h.ip: h for h in nxc.read_hosts("default")}
     assert by_ip["10.0.0.5"].role == ""
 
@@ -338,8 +355,13 @@ def test_load_pulls_nxc_hosts_into_store(nxc_home):
 
 def test_reconcile_delete_propagates_host_to_nxc(nxc_home):
     db = nxc_home / "smb.db"
-    _make_db(db, hosts=[("10.0.0.1", "DC01", "corp.local", "", 1),
-                        ("10.0.0.5", "WEB01", "corp.local", "", 0)])
+    _make_db(
+        db,
+        hosts=[
+            ("10.0.0.1", "DC01", "corp.local", "", 1),
+            ("10.0.0.5", "WEB01", "corp.local", "", 0),
+        ],
+    )
     rows = load_hosts()
     assert {"10.0.0.1", "10.0.0.5"} <= {h.ip for h in rows}
 
@@ -432,7 +454,7 @@ async def test_delete_prompt_cancel_keeps_the_row(app, nxc_home):
 
         screen.action_delete_row()
         await pilot.pause()
-        await pilot.press("n")   # cancel
+        await pilot.press("n")  # cancel
         await pilot.pause()
         assert "admin" in {c.username for c in screen._rows["creds"]}
         await app.pop_screen()
@@ -464,13 +486,18 @@ async def test_copy_keys_remap_between_tabs(app, nxc_home, monkeypatch):
 
         def labels():
             ab = screen.active_bindings
-            return {k: (ab[k].binding.description, ab[k].enabled)
-                    for k in ("ctrl+r", "ctrl+t") if k in ab}
+            return {
+                k: (ab[k].binding.description, ab[k].enabled)
+                for k in ("ctrl+r", "ctrl+t")
+                if k in ab
+            }
 
         # Creds tab (default): ctrl+r -> username, ctrl+t -> password, and the
         # footer labels them so (not greyed-out creds labels on the wrong tab).
-        assert labels() == {"ctrl+r": ("Copy User", True),
-                            "ctrl+t": ("Copy Password", True)}
+        assert labels() == {
+            "ctrl+r": ("Copy User", True),
+            "ctrl+t": ("Copy Password", True),
+        }
         await pilot.press("ctrl+r")
         await pilot.press("ctrl+t")
         await pilot.pause()
@@ -479,11 +506,13 @@ async def test_copy_keys_remap_between_tabs(app, nxc_home, monkeypatch):
         screen.action_next_tab()
         await pilot.pause()
         # Hosts tab: the same keys now copy ip / hostname, footer relabelled.
-        assert labels() == {"ctrl+r": ("Copy IP", True),
-                            "ctrl+t": ("Copy Hostname", True)}
+        assert labels() == {
+            "ctrl+r": ("Copy IP", True),
+            "ctrl+t": ("Copy Hostname", True),
+        }
         await pilot.press("ctrl+r")
         await pilot.press("ctrl+t")
-        await pilot.press("ctrl+y")   # Copy Domain (split from the FQDN)
+        await pilot.press("ctrl+y")  # Copy Domain (split from the FQDN)
         await pilot.pause()
         # Hostname copies the short name, Domain the rest of the FQDN.
         assert captured[-3:] == ["10.0.0.1", "DC01", "corp.local"]
@@ -495,8 +524,8 @@ async def test_copy_keys_remap_between_tabs(app, nxc_home, monkeypatch):
 async def test_confirm_delete_can_be_disabled(app, nxc_home, monkeypatch):
     """[creds] confirm_delete = false deletes a row immediately, no prompt."""
     monkeypatch.setattr("aliasr.core.config.CREDS_CONFIRM_DELETE", False)
-    from aliasr.tui.creds_screen.creds_screen import CredsScreen
     from aliasr.tui.creds_screen.confirm import ConfirmDelete
+    from aliasr.tui.creds_screen.creds_screen import CredsScreen
 
     _make_db(nxc_home / "smb.db", users=[("corp.local", "admin", "pw", "plaintext")])
 
@@ -530,7 +559,9 @@ def test_confirm_clear_allows_nondestructive_and_yes():
 
     # Globals-only (no creds/hosts) is non-destructive: no prompt.
     assert confirm_clear(creds=False, hosts=False) is True
-    assert confirm_clear(creds=True, hosts=False, assume_yes=True) is True  # --yes skips
+    assert (
+        confirm_clear(creds=True, hosts=False, assume_yes=True) is True
+    )  # --yes skips
 
 
 def test_confirm_clear_prompts_on_destructive(monkeypatch):
@@ -540,16 +571,18 @@ def test_confirm_clear_prompts_on_destructive(monkeypatch):
     monkeypatch.setattr(bootstrap, "_has_clearable_data", lambda *_: True)
 
     monkeypatch.setattr("builtins.input", lambda *_: "n")
-    assert bootstrap.confirm_clear(creds=True, hosts=False) is False   # declined
+    assert bootstrap.confirm_clear(creds=True, hosts=False) is False  # declined
 
     monkeypatch.setattr("builtins.input", lambda *_: "y")
-    assert bootstrap.confirm_clear(creds=True, hosts=True) is True      # confirmed
+    assert bootstrap.confirm_clear(creds=True, hosts=True) is True  # confirmed
 
     def _eof(*_):
         raise EOFError
 
     monkeypatch.setattr("builtins.input", _eof)
-    assert bootstrap.confirm_clear(creds=False, hosts=True) is False    # non-interactive aborts
+    assert (
+        bootstrap.confirm_clear(creds=False, hosts=True) is False
+    )  # non-interactive aborts
 
 
 def test_confirm_clear_skips_prompt_when_empty(monkeypatch):
@@ -561,7 +594,9 @@ def test_confirm_clear_skips_prompt_when_empty(monkeypatch):
         raise AssertionError("should not prompt when there is nothing to clear")
 
     monkeypatch.setattr("builtins.input", _boom)
-    assert bootstrap.confirm_clear(creds=True, hosts=False) is True  # proceeds without asking
+    assert (
+        bootstrap.confirm_clear(creds=True, hosts=False) is True
+    )  # proceeds without asking
 
 
 # ---------- deleting the current credential/host reconciles profile.sh ----------
@@ -582,9 +617,9 @@ async def test_deleting_current_credential_clears_profile(app, nxc_home):
         await pilot.pause()
         app.screen.action_delete_row()
         await pilot.pause()
-        await pilot.press("y")        # confirm
+        await pilot.press("y")  # confirm
         await pilot.pause()
-        await app.pop_screen()        # on_unmount
+        await app.pop_screen()  # on_unmount
         await pilot.pause()
 
     assert exegol.current_credential() is None
@@ -594,10 +629,12 @@ async def test_deleting_other_credential_keeps_current(app, nxc_home):
     """Deleting a different credential must not disturb the current one."""
     from aliasr.tui.creds_screen.creds_screen import CredsScreen
 
-    creds_mod._db.write([
-        Credential("keepme", "pw", "", "corp.local"),
-        Credential("victim", "x", "", "corp.local"),
-    ])
+    creds_mod._db.write(
+        [
+            Credential("keepme", "pw", "", "corp.local"),
+            Credential("victim", "x", "", "corp.local"),
+        ]
+    )
     exegol.set_current_credential(Credential("keepme", "pw", "", "corp.local"))
 
     async with app.run_test(size=(120, 40)) as pilot:
@@ -605,7 +642,7 @@ async def test_deleting_other_credential_keeps_current(app, nxc_home):
         await app.push_screen(CredsScreen())
         await pilot.pause()
         s = app.screen
-        s.action_list_down()          # highlight 'victim' (row 1)
+        s.action_list_down()  # highlight 'victim' (row 1)
         await pilot.pause()
         s.action_delete_row()
         await pilot.pause()
@@ -631,7 +668,7 @@ async def test_deleting_current_host_clears_profile_target(app, nxc_home):
         await app.push_screen(CredsScreen())
         await pilot.pause()
         s = app.screen
-        s.action_next_tab()           # hosts tab
+        s.action_next_tab()  # hosts tab
         await pilot.pause()
         s.action_delete_row()
         await pilot.pause()
@@ -658,7 +695,9 @@ async def test_editing_current_credential_refreshes_profile(app, nxc_home):
         # Simulate the editor's in-place replace (same id, new password).
         idx = next(i for i, c in enumerate(s._rows["creds"]) if c.username == "admin")
         row = s._rows["creds"][idx]
-        s._rows["creds"][idx] = Credential("admin", "newpass", "", row.domain, row.credential_id)
+        s._rows["creds"][idx] = Credential(
+            "admin", "newpass", "", row.domain, row.credential_id
+        )
         s._dirty["creds"] = True
         await app.pop_screen()
         await pilot.pause()
@@ -683,7 +722,9 @@ async def test_editing_current_host_refreshes_profile(app, nxc_home):
         await pilot.pause()
         idx = next(i for i, h in enumerate(s._rows["hosts"]) if h.ip == "10.0.0.9")
         row = s._rows["hosts"][idx]
-        s._rows["hosts"][idx] = Host("10.0.0.9", "web2.corp.local", row.role, row.host_id)
+        s._rows["hosts"][idx] = Host(
+            "10.0.0.9", "web2.corp.local", row.role, row.host_id
+        )
         s._dirty["hosts"] = True
         await app.pop_screen()
         await pilot.pause()
@@ -704,7 +745,9 @@ async def test_build_autofills_stored_cred_when_no_current(app, nxc_home):
 
     async with app.run_test(size=(160, 45)) as pilot:
         await pilot.pause()
-        await app.push_screen(BuildScreen("t", "nxc smb <ip> -u '<user>' -p '<password>'", md))
+        await app.push_screen(
+            BuildScreen("t", "nxc smb <ip> -u '<user>' -p '<password>'", md)
+        )
         await pilot.pause()
         build = app.screen
         assert build._values.get("user") == "pulled"
@@ -745,10 +788,8 @@ def _reset_globals():
     g._LOADED = False
     g._globals_bootstrapped = False
     g._LAST_SERIALIZED = None
-    try:
+    with contextlib.suppress(OSError):
         GLOBALS_FILE.unlink()
-    except OSError:
-        pass
 
 
 def test_launch_seeds_host_globals_and_persists(nxc_home):

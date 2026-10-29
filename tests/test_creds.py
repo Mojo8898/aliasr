@@ -115,7 +115,9 @@ def test_id_tracked_delete_removes_only_the_dropped_row():
     # deleted rows may be reused by new inserts — exegol's schema has no
     # AUTOINCREMENT — so row identity is asserted by content, not by id value.)
     assert names == {"keep", "fresh"}
-    assert next(c for c in out if c.username == "keep").credential_id == keep.credential_id
+    assert (
+        next(c for c in out if c.username == "keep").credential_id == keep.credential_id
+    )
     _ = drop  # dropped row proven absent via `names` above
 
 
@@ -233,7 +235,7 @@ def test_save_refreshes_memo_with_assigned_ids(monkeypatch):
     creds._NXC_KEYS = set()
 
     creds.save_creds([Credential("admin", "password", "", "corp.local")])
-    assert all(c.credential_id is not None for c in creds._MEMO)
+    assert all(c.credential_id is not None for c in creds._MEMO)  # pyright: ignore[reportGeneralTypeIssues]
 
 
 def test_save_keeps_primary_keys_stable_across_saves(monkeypatch):
@@ -254,8 +256,10 @@ def test_save_keeps_primary_keys_stable_across_saves(monkeypatch):
 
     # Seed two persisted rows (alice=1, zoe=2), then load them in a fresh session.
     _db.write(
-        [Credential("alice", "pw1", "", "corp.local"),
-         Credential("zoe", "pw9", "", "corp.local")]
+        [
+            Credential("alice", "pw1", "", "corp.local"),
+            Credential("zoe", "pw9", "", "corp.local"),
+        ]
     )
     creds._MEMO = None
     loaded = creds.load_creds()

@@ -2,7 +2,6 @@ from textual.theme import Theme
 
 from aliasr.core.config import THEME
 
-
 BUNDLED_THEMES = {
     "aliasr": Theme(
         name="aliasr",

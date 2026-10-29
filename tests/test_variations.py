@@ -15,9 +15,27 @@ from aliasr.core import variations as V
 def loaded(monkeypatch):
     """Install a deterministic variation table (independent of shipped data)."""
     vars_ = {
-        "bloodyAD": {"auth": {"Password": "-p '<password>'", "NT hash": "-p :<nt_hash>", "Kerberos": "-k"}},
-        "nxc": {"auth": {"Password": "-p '<password>'", "NT hash": "-H <nt_hash>", "Kerberos": "--use-kcache"}},
-        "certipy": {"auth": {"Password": "-p '<password>'", "NT hash": "-hashes <nt_hash>", "Kerberos": "-k"}},
+        "bloodyAD": {
+            "auth": {
+                "Password": "-p '<password>'",
+                "NT hash": "-p :<nt_hash>",
+                "Kerberos": "-k",
+            }
+        },
+        "nxc": {
+            "auth": {
+                "Password": "-p '<password>'",
+                "NT hash": "-H <nt_hash>",
+                "Kerberos": "--use-kcache",
+            }
+        },
+        "certipy": {
+            "auth": {
+                "Password": "-p '<password>'",
+                "NT hash": "-hashes <nt_hash>",
+                "Kerberos": "-k",
+            }
+        },
     }
     univ = {"impacket_auth": {"Password": ":'<password>'", "Kerberos": " -k -no-pass"}}
     monkeypatch.setattr(V, "_VARS", vars_)
@@ -43,9 +61,9 @@ def test_shared_auth_collapses_to_one_choice(loaded):
 
 def test_one_pick_expands_per_command(loaded):
     lines = V.apply_selection(_ALL_IN_ONE, {"auth": "Kerberos"}).split("\n")
-    assert lines[0].endswith("-k get writable")        # bloodyAD
-    assert "--use-kcache --bloodhound" in lines[1]     # nxc
-    assert "-k -target <fqdn>" in lines[2]             # certipy
+    assert lines[0].endswith("-k get writable")  # bloodyAD
+    assert "--use-kcache --bloodhound" in lines[1]  # nxc
+    assert "-k -target <fqdn>" in lines[2]  # certipy
 
 
 def test_collapse_keeps_only_keys_shared_by_every_command(loaded):
@@ -69,9 +87,11 @@ def test_universal_param_is_an_independent_choice(loaded):
 
 def test_line_without_the_chosen_key_keeps_its_placeholder(loaded):
     loaded["nxc"]["auth"]["Pass-the-ticket"] = "--use-kcache -k"
-    out = V.apply_selection("nxc <auth> x\ncertipy <auth> y", {"auth": "Pass-the-ticket"})
+    out = V.apply_selection(
+        "nxc <auth> x\ncertipy <auth> y", {"auth": "Pass-the-ticket"}
+    )
     assert "--use-kcache -k x" in out  # nxc has the key -> expanded
-    assert "<auth> y" in out           # certipy lacks it -> untouched
+    assert "<auth> y" in out  # certipy lacks it -> untouched
 
 
 def test_placeholder_on_a_command_with_no_table_is_not_offered(loaded):

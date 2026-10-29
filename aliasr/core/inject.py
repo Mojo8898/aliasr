@@ -2,7 +2,6 @@ import os
 import sys
 from pathlib import Path
 
-
 # ---------- Internal ----------
 
 
@@ -35,6 +34,7 @@ def _tmux_send_keys(pane: str, cmd: str, execute: bool) -> bool:
             return True
     except Exception:
         return False
+    return False
 
 
 def _enable_tiocsti() -> bool:
@@ -53,9 +53,13 @@ def _enable_tiocsti() -> bool:
     import subprocess
 
     try:
-        answer = input(
-            "aliasr requires TIOCSTI to inject commands, enable TIOCSTI now? [Y/n] "
-        ).strip().lower()
+        answer = (
+            input(
+                "aliasr requires TIOCSTI to inject commands, enable TIOCSTI now? [Y/n] "
+            )
+            .strip()
+            .lower()
+        )
     except (EOFError, KeyboardInterrupt):
         print(file=sys.stderr)
         return False
@@ -80,7 +84,10 @@ def _enable_tiocsti() -> bool:
         else:
             # tee under sudo so the redirect itself runs with privilege.
             subprocess.run(
-                sudo + ["tee", path], input=drop_in, check=True, stdout=subprocess.DEVNULL
+                sudo + ["tee", path],
+                input=drop_in,
+                check=True,
+                stdout=subprocess.DEVNULL,
             )
     except (OSError, subprocess.CalledProcessError) as exc:
         print(f"aliasr: could not enable TIOCSTI: {exc}", file=sys.stderr)
@@ -102,7 +109,7 @@ def _tty_inject(payload: str, _allow_enable: bool = True) -> bool:
     import termios
 
     try:
-        tty = open("/dev/tty", "rb+", buffering=0)
+        tty = open("/dev/tty", "rb+", buffering=0)  # noqa: SIM115
     except OSError:
         return False
     disabled = False
@@ -161,6 +168,7 @@ def copy_to_clipboard(cmd: str) -> int:
     headless/WSL/SSH setups), so copying works without xclip/xsel/wl-copy.
     """
     import shutil
+
     import pyperclip
 
     if os.environ.get("WAYLAND_DISPLAY") and shutil.which("wl-copy"):
@@ -202,14 +210,20 @@ def _write_cmd_tempfile(cmd: str) -> str:
     return path
 
 
-def _deliver_inline(cmd: str, using_tmux: bool, execute: bool, pane_index: str | None) -> bool:
+def _deliver_inline(
+    cmd: str, using_tmux: bool, execute: bool, pane_index: str | None
+) -> bool:
     """Type a (short) command at the prompt, or send it to a target tmux pane.
 
     Returns True if the command was delivered, False if it could not be.
     """
-    if using_tmux and pane_index and pane_index.isdigit():
-        if _tmux_send_keys(pane_index, cmd, execute):
-            return True
+    if (
+        using_tmux
+        and pane_index
+        and pane_index.isdigit()
+        and _tmux_send_keys(pane_index, cmd, execute)
+    ):
+        return True
     return _tty_inject(cmd + ("\n" if execute else ""))
 
 

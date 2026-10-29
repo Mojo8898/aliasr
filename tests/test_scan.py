@@ -18,7 +18,12 @@ def test_password_auth_is_ntlm_without_kerberos():
 
 
 def test_hash_auth_is_ntlm_without_kerberos():
-    assert _auth_args("alice", None, "DEAD", False, False) == ["-u", "alice", "-H", "DEAD"]
+    assert _auth_args("alice", None, "DEAD", False, False) == [
+        "-u",
+        "alice",
+        "-H",
+        "DEAD",
+    ]
 
 
 def test_password_auth_never_forces_kerberos():
@@ -29,7 +34,13 @@ def test_password_auth_never_forces_kerberos():
 
 def test_kerberos_with_password_passes_both():
     # -k with creds => nxc requests a TGT using those creds.
-    assert _auth_args("alice", "pw", None, True, False) == ["-u", "alice", "-p", "pw", "-k"]
+    assert _auth_args("alice", "pw", None, True, False) == [
+        "-u",
+        "alice",
+        "-p",
+        "pw",
+        "-k",
+    ]
 
 
 def test_kerberos_alone_uses_bare_flag():
@@ -68,10 +79,14 @@ def test_detect_dns_failure():
 
 
 def test_detect_logon_failure():
-    msg = _detect_issue(r"SMB 10.0.0.1 445 DC01 [-] corp.local\u:p STATUS_LOGON_FAILURE")
+    msg = _detect_issue(
+        r"SMB 10.0.0.1 445 DC01 [-] corp.local\u:p STATUS_LOGON_FAILURE"
+    )
     assert msg and "authentication failed" in msg.lower()
 
 
 def test_detect_benign_line_is_none():
-    banner = "SMB 10.0.0.1 445 DC01 [*] Windows Server 2019 (name:DC01) (domain:corp.local)"
+    banner = (
+        "SMB 10.0.0.1 445 DC01 [*] Windows Server 2019 (name:DC01) (domain:corp.local)"
+    )
     assert _detect_issue(banner) is None

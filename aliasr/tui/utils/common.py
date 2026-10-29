@@ -1,6 +1,5 @@
 import re
 
-
 _ID_SAFE_RE = re.compile(r"[^0-9A-Za-z_-]")
 
 

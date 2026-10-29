@@ -1,6 +1,10 @@
 import os
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
+from typing import TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from aliasr.app import Aliasr
 
 # ---------- Helpers ----------
 
@@ -34,7 +38,7 @@ def _load_creds_data() -> None:
     load_creds()
 
 
-def _create_app(execute: bool, pane: str | None, previous: bool) -> object:
+def _create_app(execute: bool, pane: str | None, previous: bool) -> "Aliasr":
     """Create fully configured app with tmux settings."""
     from aliasr.app import Aliasr
 
@@ -110,7 +114,7 @@ def _seed_discovered_globals(app):
 # ---------- Public API ----------
 
 
-def launch_app(execute: bool, pane: str | None, previous: bool):
+def launch_app(execute: bool, pane: str | None, previous: bool) -> "Aliasr":
     """
     Optimal parallel startup - all heavy operations happen simultaneously.
     Returns fully configured app ready to run.
@@ -190,7 +194,7 @@ def clear_flags(globals: bool, creds: bool, hosts: bool = False) -> bool:
     Each clear returns True when it removed something; the printed line reflects
     that ("... cleared successfully!" vs "... unchanged").
     """
-    tasks: list[tuple[str, callable]] = []
+    tasks: list[tuple[str, Callable[[], object]]] = []
 
     if globals:
         from aliasr.core.globals import clear_globals
